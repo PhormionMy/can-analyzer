@@ -123,6 +123,15 @@ body{display:flex;flex-direction:column}
 .parse-btn{width:100%;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#00d4ff,#0088cc);color:#000;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;transition:all .2s}
 .parse-btn:active{transform:scale(0.97);opacity:.9}
 .parse-btn:disabled{opacity:.3;cursor:not-allowed;background:#333;color:#666}
+.dbc-lib-item{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1a1a2e;border-radius:10px;margin-bottom:4px;cursor:pointer;border:0.5px solid transparent;transition:all .15s}
+.dbc-lib-item:active{background:#2a2a3e;border-color:#00d4ff44}
+.dbc-lib-item .dli-icon{font-size:16px;flex-shrink:0}
+.dbc-lib-item .dli-info{flex:1;min-width:0}
+.dbc-lib-item .dli-name{color:#ddd;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbc-lib-item .dli-meta{color:#555;font-size:10px;margin-top:2px;display:flex;gap:8px}
+.dbc-lib-item .dli-meta b{color:#888}
+.dbc-lib-item .dli-del{width:28px;height:28px;border-radius:6px;border:none;background:#2a1a1a;color:#f44;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s}
+.dbc-lib-item .dli-del:active{background:#4a2a2a;transform:scale(0.9)}
 .upload-status{text-align:center;padding:8px;font-size:12px;color:#666}
 .upload-status.ok{color:#00ff88}
 .raw-page{flex:1;overflow-y:auto;padding:10px;-webkit-overflow-scrolling:touch}
@@ -285,6 +294,15 @@ body{display:flex;flex-direction:column}
       <div class="upload-section"><div class="upload-section-title">📐 DBC 协议文件</div><div class="upload-section-desc">CAN信号数据库定义文件</div>
         <div class="upload-zone" id="dbcZone"><input type="file" id="dbcIn" accept=".dbc,.txt,.DBC,.TXT,application/octet-stream" multiple><div class="uz-icon">📐</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.dbc .txt</div></div>
         <div class="file-list" id="dbcL"></div>
+      </div>
+      <div class="upload-section">
+        <div class="upload-section-title" style="cursor:pointer" id="dbcLibHdr">📚 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="dbcLibCnt"></span><span style="font-size:10px;color:#555;margin-left:4px" id="dbcLibArrow">▼</span></div>
+        <div class="upload-section-desc">已保存的DBC文件，点击可直接加载</div>
+        <div id="dbcLibBody">
+          <div id="dbcLibList" style="max-height:240px;overflow-y:auto"></div>
+          <div id="dbcLibEmpty" style="text-align:center;color:#444;font-size:12px;padding:16px">暂无保存的DBC文件</div>
+          <button class="ct-btn" id="dbcLibSaveBtn" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;font-size:12px;display:none">💾 保存当前上传的DBC到库</button>
+        </div>
       </div>
       <div class="upload-status" id="uploadStatus">请上传ASC和DBC文件</div>
       <button class="parse-btn" id="goBtn" disabled>▶ 开始解析</button>
@@ -543,8 +561,84 @@ function uB(){
   var st=$('uploadStatus');
   st.textContent=ok?'已选择 ASC:'+S.aF.length+' DBC:'+S.dF.length+' — 可以解析':'请上传ASC和DBC文件';
   st.className='upload-status'+(ok?' ok':'');
+  $('dbcLibSaveBtn').style.display=S.dF.length>0?'':'none';
 }
 function rd(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.onload=function(e){r(e.target.result)};rd2.onerror=j;rd2.readAsText(f,'UTF-8')})}
+
+// ====== DBC Library (localStorage) ======
+var DBC_LIB_KEY='can_tool_dbc_lib';
+
+function dbcLibLoad(){
+  try{var raw=localStorage.getItem(DBC_LIB_KEY);return raw?JSON.parse(raw):{}}catch(e){return{}}
+}
+function dbcLibSave(lib){try{localStorage.setItem(DBC_LIB_KEY,JSON.stringify(lib))}catch(e){alert('存储空间不足，无法保存DBC到库')}}
+
+function dbcLibRender(){
+  var lib=dbcLibLoad(),keys=Object.keys(lib),el=$('dbcLibList'),empty=$('dbcLibEmpty'),cnt=$('dbcLibCnt');
+  cnt.textContent=keys.length?keys.length+'个':'';
+  if(!keys.length){el.innerHTML='';empty.style.display='';return}
+  empty.style.display='none';
+  var h='';
+  keys.sort(function(a,b){return(lib[b].ts||0)-(lib[a].ts||0)});
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i],item=lib[k],sigCnt=0,msgCnt=0;
+    try{var ls=item.content.split(/\r?\n/),cm=null;for(var j=0;j<ls.length;j++){var l=ls[j].trim();if(l.indexOf('BO_')===0){msgCnt++;cm=l.match(/BO_\s+\d+/)?true:null}else if(cm&&l.indexOf('SG_')===0)sigCnt++}}catch(e){}
+    var dateStr=item.ts?new Date(item.ts).toLocaleDateString('zh-CN'):'';
+    h+='<div class="dbc-lib-item" data-key="'+k+'"><span class="dli-icon">📐</span><div class="dli-info"><div class="dli-name">'+item.name+'</div><div class="dli-meta"><span>报文 <b>'+msgCnt+'</b></span><span>信号 <b>'+sigCnt+'</b></span><span>'+fmtSize(item.size)+'</span><span>'+dateStr+'</span></div></div><button class="dli-del" data-key="'+k+'" title="删除">✕</button></div>';
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.dbc-lib-item').forEach(function(it){
+    it.addEventListener('click',function(e){
+      if(e.target.closest('.dli-del'))return;
+      dbcLibUse(this.dataset.key);
+    });
+  });
+  el.querySelectorAll('.dli-del').forEach(function(btn){
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      var key=this.dataset.key;
+      var lib2=dbcLibLoad();delete lib2[key];dbcLibSave(lib2);
+      dbcLibRender();
+    });
+  });
+}
+
+function dbcLibUse(key){
+  var lib=dbcLibLoad(),item=lib[key];
+  if(!item)return;
+  var blob=new Blob([item.content],{type:'text/plain'});
+  var file=new File([blob],item.name,{type:'text/plain'});
+  S.dF.push({n:item.name,s:item.size,f:file});
+  rFL('dbc');uB();
+  $('dbcZone').classList.add('has-files');
+}
+
+function dbcLibSaveCurrent(){
+  if(!S.dF.length)return;
+  var saved=0,total=S.dF.length;
+  var promises=S.dF.map(function(item){
+    if(item._fromLib){saved++;return Promise.resolve()}
+    return rd(item.f).then(function(content){
+      var lib=dbcLibLoad();
+      lib[item.n]={name:item.n,size:item.s,content:content,ts:Date.now()};
+      dbcLibSave(lib);
+      saved++;
+    });
+  });
+  Promise.all(promises).then(function(){
+    dbcLibRender();
+    alert('已保存 '+saved+' 个DBC文件到库');
+  });
+}
+
+$('dbcLibHdr').addEventListener('click',function(){
+  var body=$('dbcLibBody'),arrow=$('dbcLibArrow');
+  if(body.style.display==='none'){body.style.display='';arrow.textContent='▼'}
+  else{body.style.display='none';arrow.textContent='▶'}
+});
+$('dbcLibSaveBtn').addEventListener('click',dbcLibSaveCurrent);
+
+dbcLibRender();
 
 // ====== Parsers ======
 function pDBC(c){
