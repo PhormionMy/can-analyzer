@@ -296,9 +296,11 @@ body{display:flex;flex-direction:column}
         <div class="file-list" id="dbcL"></div>
       </div>
       <div class="upload-section">
-        <div class="upload-section-title">📚 内置 DBC 库</div>
+        <div class="upload-section-title">📚 内置 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="builtinDbcCnt"></span></div>
         <div class="upload-section-desc">预置的DBC协议文件，点击直接加载</div>
-        <div id="builtinDbcList"></div>
+        <input type="text" class="id-search" id="builtinDbcSearch" placeholder="🔍 搜索DBC名称..." style="margin-bottom:8px">
+        <div id="builtinDbcList" style="max-height:320px;overflow-y:auto"></div>
+        <div id="builtinDbcEmpty" style="text-align:center;color:#444;font-size:12px;padding:16px;display:none">无匹配结果</div>
       </div>
       <div class="upload-section">
         <div class="upload-section-title" style="cursor:pointer" id="dbcLibHdr">💾 我的 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="dbcLibCnt"></span><span style="font-size:10px;color:#555;margin-left:4px" id="dbcLibArrow">▼</span></div>
@@ -784,20 +786,29 @@ $('dbcLibSaveBtn').addEventListener('click',dbcLibSaveCurrent);
 dbcLibRender();
 
 // ====== Built-in DBC Library ======
-function renderBuiltinDbc(){
-  var el=$('builtinDbcList'),h='';
+function renderBuiltinDbc(filter){
+  var el=$('builtinDbcList'),empty=$('builtinDbcEmpty'),cnt=$('builtinDbcCnt');
+  var fl=(filter||'').toLowerCase();
   var names=Object.keys(BUILTIN_DBC).sort();
+  var total=names.length,shown=0,h='';
   for(var i=0;i<names.length;i++){
-    var name=names[i],content=BUILTIN_DBC[name],size=new Blob([content]).size;
+    var name=names[i];
+    if(fl&&name.toLowerCase().indexOf(fl)<0)continue;
+    shown++;
+    var content=BUILTIN_DBC[name],size=new Blob([content]).size;
     var sigCnt=0,msgCnt=0;
     try{var ls=content.split(/\r?\n/),cm=null;for(var j=0;j<ls.length;j++){var l=ls[j].trim();if(l.indexOf('BO_')===0){msgCnt++;cm=true}else if(cm&&l.indexOf('SG_')===0)sigCnt++}}catch(e){}
     h+='<div class="dbc-lib-item" data-builtin="'+name+'"><span class="dli-icon">📐</span><div class="dli-info"><div class="dli-name">'+name+'</div><div class="dli-meta"><span>报文 <b>'+msgCnt+'</b></span><span>信号 <b>'+sigCnt+'</b></span><span>'+fmtSize(size)+'</span></div></div><span style="color:#00ff88;font-size:11px;flex-shrink:0">内置</span></div>';
   }
   el.innerHTML=h;
+  cnt.textContent=fl?(shown+'/'+total):total+'个';
+  empty.style.display=shown?'none':'';
   el.querySelectorAll('[data-builtin]').forEach(function(it){
     it.addEventListener('click',function(){loadBuiltinDbc(this.dataset.builtin)});
   });
 }
+
+$('builtinDbcSearch').addEventListener('input',function(){renderBuiltinDbc(this.value)});
 
 function loadBuiltinDbc(name){
   var content=BUILTIN_DBC[name];
