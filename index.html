@@ -50,7 +50,7 @@ body{display:flex;flex-direction:column}
 .ax-chip .ax-toggle{width:16px;height:16px;border-radius:4px;border:none;background:transparent;color:#888;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:2px;opacity:0.7}
 .ax-chip .ax-toggle:active{opacity:1}
 .ax-chip .ax-toggle.hidden{color:#555}
-.chart-area{flex:1;overflow:auto;background:#0a0a0a;-webkit-overflow-scrolling:touch;touch-action:none;-webkit-user-select:none;user-select:none}
+.chart-area{flex:1;overflow:auto;background:#0a0a0a;-webkit-overflow-scrolling:touch;-webkit-user-select:none;user-select:none}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:0;transition:opacity .25s}
 .drawer-overlay.show{display:block;opacity:1}
 .drawer{position:fixed;top:0;left:0;bottom:0;width:85%;max-width:340px;background:#111218;z-index:101;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;padding-top:var(--safe-top);box-shadow:4px 0 20px rgba(0,0,0,0.5)}
@@ -215,7 +215,7 @@ body{display:flex;flex-direction:column}
 .cursor-status.active{display:block}
 .cursor-status .cs-label{color:#888;margin-right:4px}
 .cursor-status .cs-value{color:#fff;font-weight:600}
-.cursor-handle{position:absolute;width:56px;height:56px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:20;display:none;transition:transform .12s ease}
+.cursor-handle{position:absolute;width:46px;height:46px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:20;display:none;transition:transform .12s ease}
 .cursor-handle.active{display:block}
 .cursor-handle.c1{background:rgba(0,212,255,0.18);border:2px solid #00d4ff;box-shadow:0 0 14px rgba(0,212,255,0.5)}
 .cursor-handle.c2{background:rgba(255,215,0,0.18);border:2px solid #ffd700;box-shadow:0 0 14px rgba(255,215,0,0.5)}
@@ -1503,7 +1503,7 @@ function mChart(ax,sigs,yMn,yMx){
   var wrap=document.createElement('div');wrap.className='chart-container';
   var legendWrap=document.createElement('div');legendWrap.className='chart-legend-m';wrap.appendChild(legendWrap);
   var svgContainer=document.createElement('div');
-  svgContainer.style.cssText='flex:1;overflow:hidden;position:relative;min-height:100px;touch-action:none;';
+  svgContainer.style.cssText='flex:1;overflow:hidden;position:relative;min-height:100px;';
   wrap.appendChild(svgContainer);
   var svg=document.createElementNS(NS,'svg');
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');svg.setAttribute('viewBox','0 0 '+W+' '+H);
@@ -1610,7 +1610,6 @@ function mChart(ax,sigs,yMn,yMx){
   function startMomentum(){
     stopMomentum();
     var m=C.momentum, decay=0.95, minV=0.5;
-    // vx/vy already set in touchmove
     function step(){
       if(Math.abs(m.vx)<minV&&Math.abs(m.vy)<minV){m.raf=null;return}
       var fs=C.subs[0];
@@ -1635,6 +1634,10 @@ function mChart(ax,sigs,yMn,yMx){
     }
     m.raf=requestAnimationFrame(step);
   }
+  function endChartPan(){
+    C.dr=false;
+    for(var i=0;i<C.subs.length;i++){delete C.subs[i]._dy0;delete C.subs[i]._dy1}
+  }
 
   pH.addEventListener('touchstart',function(e){
     stopMomentum();
@@ -1647,7 +1650,6 @@ function mChart(ax,sigs,yMn,yMx){
       C.touchZoom.distance=distance;
       C.touchZoom.t0=C.t0;
       C.touchZoom.t1=C.t1;
-      // 动态中心点
       var rect=svg.getBoundingClientRect();
       var centerX=(touch1.clientX+touch2.clientX)/2-rect.left;
       C.touchZoom.centerTime=timeAtX(sub,centerX);
@@ -1655,8 +1657,7 @@ function mChart(ax,sigs,yMn,yMx){
       if(isNaN(C.touchZoom.centerRatio)||!isFinite(C.touchZoom.centerRatio))C.touchZoom.centerRatio=0.5;
       hint.style.opacity='0';
     } else if(e.touches.length===1){
-      // 单指操作
-      e.preventDefault();
+      // 单指操作 - 不阻止默认行为，让浏览器可以处理垂直滚动
       var touch=e.touches[0];
       var rect=svg.getBoundingClientRect();
       var mx=touch.clientX-rect.left;
@@ -1666,8 +1667,8 @@ function mChart(ax,sigs,yMn,yMx){
       C.touchState.startY=touch.clientY;
       C.touchState.lastX=touch.clientX;
       C.touchState.lastY=touch.clientY;
+      C.touchState.mode='pending';
 
-      // 动量速度初始化
       C.momentum.vx=0;C.momentum.vy=0;
       C.momentum.lastX=touch.clientX;C.momentum.lastY=touch.clientY;C.momentum.lastT=performance.now();
 
@@ -1675,6 +1676,7 @@ function mChart(ax,sigs,yMn,yMx){
       if(C.cm!==0){
         var nearCursor=detectNearCursor(sub,mx);
         if(nearCursor){
+          e.preventDefault(); // 光标拖动需要阻止滚动
           C.selectedCursor=nearCursor;
           C.touchState.mode='cursor';
           C.curDrag=nearCursor;
@@ -1683,49 +1685,36 @@ function mChart(ax,sigs,yMn,yMx){
           return;
         }
       }
-
-      // 平移模式
-      C.touchState.mode='pan';
-      C.dr=true;
-      C.dpx=touch.clientX;
-      C.dpy=touch.clientY;
-      C.dt0=C.t0;C.dt1=C.t1;
-      for(var i=0;i<C.subs.length;i++){
-        C.subs[i]._dy0=C.subs[i].yMn;
-        C.subs[i]._dy1=C.subs[i].yMx;
-      }
+      // 否则等待 touchmove 判断方向
     }
   },{passive:false});
 
   pH.addEventListener('touchmove',function(e){
     if(C.touchZoom.active && e.touches.length===2){
-      // 双指缩放 - 动态跟踪中心点
+      // 双指缩放
       e.preventDefault();
       var touch1=e.touches[0],touch2=e.touches[1];
       var newDistance=Math.hypot(touch2.clientX-touch1.clientX,touch2.clientY-touch1.clientY);
-
       if(C.touchZoom.distance>0&&newDistance>0){
         var scale=C.touchZoom.distance/newDistance;
         var originalRange=C.touchZoom.t1-C.touchZoom.t0;
         var newRange=Math.max(originalRange*scale,0.001);
-
-        // 更新中心点位置（跟随手指移动）
         var rect=svg.getBoundingClientRect();
         var centerX=(touch1.clientX+touch2.clientX)/2-rect.left;
-        var centerY=(touch1.clientY+touch2.clientY)/2-rect.top;
         if(centerX>=sub.mg.l&&centerX<=sub.mg.l+sub.pw){
           C.touchZoom.centerTime=timeAtX(sub,centerX);
           C.touchZoom.centerRatio=(C.touchZoom.centerTime-C.touchZoom.t0)/(C.touchZoom.t1-C.touchZoom.t0);
           if(isNaN(C.touchZoom.centerRatio)||!isFinite(C.touchZoom.centerRatio))C.touchZoom.centerRatio=0.5;
         }
-
         C.t0=C.touchZoom.centerTime-C.touchZoom.centerRatio*newRange;
         C.t1=C.touchZoom.centerTime+(1-C.touchZoom.centerRatio)*newRange;
         rAll();
       }
     } else if(C.touchState.active && e.touches.length===1){
-      e.preventDefault();
       var touch=e.touches[0];
+      var adx=touch.clientX-C.touchState.startX;
+      var ady=touch.clientY-C.touchState.startY;
+      var absDx=Math.abs(adx),absDy=Math.abs(ady);
 
       // 动量速度计算
       var now=performance.now(),dt=now-C.momentum.lastT;
@@ -1736,7 +1725,8 @@ function mChart(ax,sigs,yMn,yMx){
       }
 
       if(C.touchState.mode==='cursor'&&C.curDrag){
-        // 移动光标
+        // 光标拖动
+        e.preventDefault();
         var rect=svg.getBoundingClientRect();
         var mx=touch.clientX-rect.left;
         mx=Math.max(mg.l,Math.min(mx,mg.l+sub.pw));
@@ -1746,17 +1736,36 @@ function mChart(ax,sigs,yMn,yMx){
         C._moved=true;
         updateCursorHandles(sub);
         uCur();
+      } else if(C.touchState.mode==='pending'){
+        // 等待方向判断
+        if(absDx>8||absDy>8){
+          if(absDx>absDy*1.2){
+            // 水平移动 → 图表平移
+            e.preventDefault();
+            C.touchState.mode='pan';
+            C.dr=true;
+            C.dpx=C.touchState.startX;
+            C.dpy=C.touchState.startY;
+            C.dt0=C.t0;C.dt1=C.t1;
+            for(var i=0;i<C.subs.length;i++){
+              C.subs[i]._dy0=C.subs[i].yMn;
+              C.subs[i]._dy1=C.subs[i].yMx;
+            }
+          } else {
+            // 垂直移动 → 放弃，让浏览器滚动
+            C.touchState.mode='scroll';
+          }
+        }
       } else if(C.touchState.mode==='pan'&&C.dr){
-        // 平移波形
+        // 图表平移
+        e.preventDefault();
         C._moved=true;
         var pdx=touch.clientX-C.dpx;
         var pdy=touch.clientY-C.dpy;
         var fs=C.subs[0];
         if(!fs||!isValidTR())return;
-
         var dtx=-(pdx/fs.pw)*(C.dt1-C.dt0);
         C.t0=C.dt0+dtx;C.t1=C.dt1+dtx;
-
         if(!C.yr)C.yr={};
         for(var i=0;i<C.subs.length;i++){
           var s=C.subs[i];
@@ -1768,6 +1777,7 @@ function mChart(ax,sigs,yMn,yMx){
         }
         rAll();
       }
+      // mode==='scroll' → 不阻止默认，浏览器自然滚动
       C.touchState.lastX=touch.clientX;
       C.touchState.lastY=touch.clientY;
     }
@@ -1784,7 +1794,6 @@ function mChart(ax,sigs,yMn,yMx){
       var now=performance.now();
 
       if(isTap){
-        // 双击检测
         var elapsed=now-C.lastTap.time;
         var dist=Math.hypot(tx-C.lastTap.x,ty-C.lastTap.y);
         if(elapsed<350&&dist<40){
@@ -1800,7 +1809,6 @@ function mChart(ax,sigs,yMn,yMx){
           C.lastTap.time=0;
         } else {
           C.lastTap.time=now;C.lastTap.x=tx;C.lastTap.y=ty;
-          // 单击 → 放置/切换光标
           if(C.cm!==0){
             var rect=svg.getBoundingClientRect();
             var mx=tx-rect.left;
@@ -1816,14 +1824,14 @@ function mChart(ax,sigs,yMn,yMx){
           }
         }
       } else {
-        // 不是点击 → 启动动量平移
         if(C.touchState.mode==='pan'&&(Math.abs(C.momentum.vx)>1||Math.abs(C.momentum.vy)>1)){
           startMomentum();
         }
         C.lastTap.time=0;
       }
 
-      C.touchState.active=false;C.touchState.mode='none';C.curDrag=null;C.dr=false;
+      C.touchState.active=false;C.touchState.mode='none';C.curDrag=null;
+      endChartPan();
       for(var i=0;i<C.subs.length;i++){delete C.subs[i]._dy0;delete C.subs[i]._dy1}
     }
     C._moved=false;
