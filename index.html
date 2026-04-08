@@ -296,11 +296,13 @@ body{display:flex;flex-direction:column}
         <div class="file-list" id="dbcL"></div>
       </div>
       <div class="upload-section">
-        <div class="upload-section-title">📚 内置 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="builtinDbcCnt"></span></div>
-        <div class="upload-section-desc">预置的DBC协议文件，点击直接加载</div>
-        <input type="text" class="id-search" id="builtinDbcSearch" placeholder="🔍 搜索DBC名称..." style="margin-bottom:8px">
-        <div id="builtinDbcList" style="max-height:320px;overflow-y:auto"></div>
-        <div id="builtinDbcEmpty" style="text-align:center;color:#444;font-size:12px;padding:16px;display:none">无匹配结果</div>
+        <div class="upload-section-title" style="cursor:pointer" id="builtinDbcHdr">📚 内置 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="builtinDbcCnt">135个</span><span style="font-size:10px;color:#555;margin-left:4px" id="builtinDbcArrow">▶</span></div>
+        <div id="builtinDbcBody" style="display:none">
+          <div class="upload-section-desc">预置的DBC协议文件，点击直接加载</div>
+          <input type="text" class="id-search" id="builtinDbcSearch" placeholder="🔍 搜索DBC名称..." style="margin-bottom:8px">
+          <div id="builtinDbcList" style="max-height:320px;overflow-y:auto"></div>
+          <div id="builtinDbcEmpty" style="text-align:center;color:#444;font-size:12px;padding:16px;display:none">无匹配结果</div>
+        </div>
       </div>
       <div class="upload-section">
         <div class="upload-section-title" style="cursor:pointer" id="dbcLibHdr">💾 我的 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="dbcLibCnt"></span><span style="font-size:10px;color:#555;margin-left:4px" id="dbcLibArrow">▼</span></div>
@@ -808,7 +810,23 @@ function renderBuiltinDbc(filter){
   });
 }
 
-$('builtinDbcSearch').addEventListener('input',function(){renderBuiltinDbc(this.value)});
+$('builtinDbcSearch').addEventListener('input',function(){
+  // Auto-expand on search
+  if(this.value&&$('builtinDbcBody').style.display==='none'){
+    $('builtinDbcBody').style.display='';$('builtinDbcArrow').textContent='▼';
+    renderBuiltinDbc('');
+  }
+  renderBuiltinDbc(this.value);
+});
+
+$('builtinDbcHdr').addEventListener('click',function(e){
+  if(e.target===$('builtinDbcSearch'))return;
+  var body=$('builtinDbcBody'),arrow=$('builtinDbcArrow');
+  if(body.style.display==='none'){
+    body.style.display='';arrow.textContent='▼';
+    if(!$('builtinDbcList').innerHTML)renderBuiltinDbc($('builtinDbcSearch').value);
+  }else{body.style.display='none';arrow.textContent='▶'}
+});
 
 function loadBuiltinDbc(name){
   var content=BUILTIN_DBC[name];
@@ -825,7 +843,7 @@ function loadBuiltinDbc(name){
   }
 }
 
-renderBuiltinDbc();
+// renderBuiltinDbc(); // lazy: renders on expand
 
 // ====== Parsers ======
 function pDBC(c){
