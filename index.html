@@ -397,7 +397,10 @@ body{display:flex;flex-direction:column}
     <div class="ai-page" id="aiContent">
       <div class="ai-header">
         <div class="ai-title">🔬 智能诊断分析</div>
-        <button class="ai-run-btn" id="aiRunBtn" disabled>▶ 全量诊断</button>
+        <div style="display:flex;gap:6px">
+          <button class="ai-run-btn" id="aiRunBtn" disabled>▶ 全量诊断</button>
+          <button class="ai-run-btn" id="aiWaveBtn" disabled style="background:linear-gradient(135deg,#00b4d8,#0077b6)">📊 波形信号分析</button>
+        </div>
       </div>
       <div class="ai-desc-box">
         <textarea id="aiDescInput" class="ai-desc-input" placeholder="描述问题现象，例如：&#10;• 电机转速突然下降&#10;• 扭矩响应跟不上指令&#10;• 电控温度异常升高&#10;• 使能后MCU未响应&#10;• 母线电压波动大"></textarea>
@@ -1118,9 +1121,15 @@ $('goBtn').addEventListener('click',async function(){
     uSt();rChSel();rIdList();rSigPanel();rProto();
     $('aiRunBtn').disabled=false;
     $('aiDescBtn').disabled=false;
+    $('aiWaveBtn').disabled=false;
     switchPage('chart');
     $('dtSig').click();
     $('drawer').classList.add('show');$('drawerOverlay').classList.add('show');
+    // 解析完成后自动执行全量诊断
+    setTimeout(function(){
+      switchPage('ai');
+      runAiAnalysis();
+    },300);
   }catch(e){console.error('解析错误:',e)}
 });
 
@@ -3485,11 +3494,242 @@ $('aiRunBtn').addEventListener('click',function(){
   });
 });
 
+// ====== 波形信号详细分析 ======
+function runWaveSigAnalysis(){
+  if(!S.ok)return;
+  // 获取当前波形图上的所有信号
+  var activeSigs=[];
+  for(var k in C.ss){
+    if(S.dec[k]&&S.dec[k].length>0){
+      var ax=findAxis(C.ss[k]);
+      activeSigs.push({full:k,data:S.dec[k],axName:ax?ax.name:'未分配'});
+    }
+  }
+
+  if(activeSigs.length===0){
+    $('aiEmpty').style.display='none';
+    $('aiResults').style.display='';
+    $('aiResults').innerHTML='<div class="ai-empty"><div class="es-icon">📊</div><div>波形图上暂无信号</div><div style="font-size:11px;color:#555">请先在信号面板中添加信号到波形图</div></div>';
+    return;
+  }
+
+  var results=[];
+  var stats={checks:0,warnings:0,errors:0,ok:0};
+
+  function addResult(category,title,severity,detail){
+    results.push({category:category,title:title,severity:severity,detail:detail});
+    stats.checks++;
+    if(severity==='ok')stats.ok++;
+    if(severity==='warning')stats.warnings++;
+    if(severity==='error')stats.errors++;
+  }
+
+  // 计算标准差
+  function stddev(sigData){
+    if(!sigData||sigData.length<2)return 0;
+    var sum=0,sum2=0;
+    for(var i=0;i<sigData.length;i++){sum+=sigData[i].v;sum2+=sigData[i].v*sigData[i].v}
+    var n=sigData.length,mean=sum/n;
+    return Math.sqrt(sum2/n-mean*mean);
+  }
+
+  // 计算中位数
+  function median(sigData){
+    if(!sigData||!sigData.length)return 0;
+    var sorted=sigData.map(function(d){return d.v}).sort(function(a,b){return a-b});
+    var mid=Math.floor(sorted.length/2);
+    return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;
+  }
+
+  // 计算变化率 (单位/秒)
+  function changeRate(sigData){
+    if(!sigData||sigData.length<2)return 0;
+    var dt=sigData[sigData.length-1].t-sigData[0].t;
+    if(dt<=0)return 0;
+    return(sigData[sigData.length-1].v-sigData[0].v)/dt;
+  }
+
+  // 检测周期性
+  function detectPeriodicity(sigData){
+    if(!sigData||sigData.length<20)return null;
+    var r=valRange(sigData);
+    var mid=(r.max+r.min)/2;
+    var crossings=[];
+    for(var i=1;i<sigData.length;i++){
+      if((sigData[i-1].v<mid&&sigData[i].v>=mid)||(sigData[i-1].v>=mid&&sigData[i].v<mid)){
+        crossings.push(sigData[i].t);
+      }
+    }
+    if(crossings.length<3)return null;
+    var intervals=[];
+    for(var i=1;i<crossings.length;i++)intervals.push(crossings[i]-crossings[i-1]);
+    var sum=0;for(var i=0;i<intervals.length;i++)sum+=intervals[i];
+    var avgPeriod=sum/intervals.length*2; // 完整周期=两次过中
+    var varSum=0;for(var i=0;i<intervals.length;i++)varSum+=(intervals[i]-avgPeriod/2)*(intervals[i]-avgPeriod/2);
+    var varStd=Math.sqrt(varSum/intervals.length);
+    // 如果方差相对于周期很小，认为有周期性
+    if(varStd/avgPeriod<0.2)return avgPeriod;
+    return null;
+  }
+
+  // 采样率分析
+  function analyzeSampleRate(sigData){
+    if(!sigData||sigData.length<5)return null;
+    var intervals=[];
+    var sampleCount=Math.min(sigData.length-1,100);
+    var step=Math.max(1,Math.floor(sigData.length/sampleCount));
+    for(var i=step;i<sigData.length;i+=step){
+      intervals.push(sigData[i].t-sigData[i-step].t);
+    }
+    if(!intervals.length)return null;
+    var sum=0;for(var i=0;i<intervals.length;i++)sum+=intervals[i];
+    var avgInterval=sum/intervals.length;
+    var maxInterval=0,minInterval=Infinity;
+    for(var i=0;i<intervals.length;i++){
+      if(intervals[i]>maxInterval)maxInterval=intervals[i];
+      if(intervals[i]<minInterval)minInterval=intervals[i];
+    }
+    return{avgMs:avgInterval*1000,minMs:minInterval*1000,maxMs:maxInterval*1000,hz:avgInterval>0?1/avgInterval:0};
+  }
+
+  // 每个信号的详细分析
+  for(var i=0;i<activeSigs.length;i++){
+    var sig=activeSigs[i];
+    var d=sig.data;
+    var r=valRange(d);
+    var sd=stddev(d);
+    var med=median(d);
+    var cr=changeRate(d);
+    var period=detectPeriodicity(d);
+    var sampRate=analyzeSampleRate(d);
+    var changes=changeCount(d);
+    var stuck=isStuck(d,0.95);
+    var spikes=detectSpikes(d,0.15);
+
+    // 信号名称简化
+    var parts=sig.full.split('.');
+    var shortName=parts.length>1?parts.slice(1).join('.'):sig.full;
+
+    var h='<div style="margin-bottom:12px">';
+    h+='<div style="font-size:13px;font-weight:600;color:#00d4ff;margin-bottom:6px">'+shortName+'</div>';
+    h+='<div style="font-size:10px;color:#666;margin-bottom:6px">'+sig.full+'</div>';
+
+    // 统计指标表
+    h+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:8px">';
+    h+='<div class="ai-stat">最小值 <b>'+(r.min!==null?r.min.toFixed(2):'-')+'</b></div>';
+    h+='<div class="ai-stat">最大值 <b>'+(r.max!==null?r.max.toFixed(2):'-')+'</b></div>';
+    h+='<div class="ai-stat">平均值 <b>'+(r.avg!==null?r.avg.toFixed(2):'-')+'</b></div>';
+    h+='<div class="ai-stat">中位数 <b>'+med.toFixed(2)+'</b></div>';
+    h+='<div class="ai-stat">标准差 <b>'+sd.toFixed(3)+'</b></div>';
+    h+='<div class="ai-stat">极差 <b>'+((r.max-r.min).toFixed(2))+'</b></div>';
+    h+='<div class="ai-stat">数据点 <b>'+d.length+'</b></div>';
+    h+='<div class="ai-stat">变化次数 <b>'+changes+'</b></div>';
+    h+='<div class="ai-stat">变化率 <b>'+cr.toFixed(2)+'/s</b></div>';
+    h+='</div>';
+
+    // 采样率信息
+    if(sampRate){
+      h+='<div style="font-size:11px;color:#888;margin-bottom:4px">📡 采样: 平均 '+sampRate.hz.toFixed(1)+'Hz ('+sampRate.avgMs.toFixed(1)+'ms) | 最快 '+sampRate.minMs.toFixed(1)+'ms | 最慢 '+sampRate.maxMs.toFixed(1)+'ms</div>';
+    }
+
+    // 周期性
+    if(period){
+      h+='<div style="font-size:11px;color:#00ff88;margin-bottom:4px">🔄 检测到周期性: 约 '+period.toFixed(3)+'s ('+(1/period).toFixed(1)+' Hz)</div>';
+    }
+
+    // 告警信息
+    if(stuck){
+      h+='<div style="font-size:11px;color:#ffd700;margin-bottom:4px">⚠ 信号超过95%时间保持同一值 ('+r.min+')</div>';
+    }
+    if(spikes.length>0){
+      var worst=spikes[0];
+      for(var s=1;s<spikes.length;s++){if(Math.abs(spikes[s].delta)>Math.abs(worst.delta))worst=spikes[s]}
+      h+='<div style="font-size:11px;color:#ff6b9d;margin-bottom:4px">⚡ 检测到 '+spikes.length+' 次突变, 最大: '+worst.from.toFixed(1)+' → '+worst.to.toFixed(1)+' (Δ'+worst.delta.toFixed(1)+') @ '+fmtTime(worst.t)+'</div>';
+    }
+
+    // 分布直方图 (简易文本版)
+    if(d.length>10&&r.max!==r.min){
+      var bins=10;
+      var binW=(r.max-r.min)/bins;
+      var hist=new Array(bins).fill(0);
+      for(var j=0;j<d.length;j++){
+        var bi=Math.min(Math.floor((d[j].v-r.min)/binW),bins-1);
+        hist[bi]++;
+      }
+      var maxHist=0;for(var j=0;j<bins;j++)if(hist[j]>maxHist)maxHist=hist[j];
+      h+='<div style="font-size:10px;color:#666;margin:6px 0 2px">值分布直方图:</div>';
+      h+='<div style="display:flex;align-items:flex-end;gap:1px;height:40px;margin-bottom:2px">';
+      for(var j=0;j<bins;j++){
+        var barH=maxHist>0?(hist[j]/maxHist*100):0;
+        var binLabel=(r.min+binW*j).toFixed(1);
+        h+='<div style="flex:1;display:flex;flex-direction:column;align-items:center" title="'+binLabel+': '+hist[j]+'次">';
+        h+='<div style="font-size:8px;color:#888">'+hist[j]+'</div>';
+        h+='<div style="width:100%;height:'+barH+'%;background:linear-gradient(180deg,#00d4ff,#0077b6);border-radius:2px 2px 0 0;min-height:1px"></div>';
+        h+='</div>';
+      }
+      h+='</div>';
+      h+='<div style="display:flex;justify-content:space-between;font-size:8px;color:#555"><span>'+r.min.toFixed(1)+'</span><span>'+r.max.toFixed(1)+'</span></div>';
+    }
+
+    h+='</div>';
+
+    // 综合评估
+    var sev='ok';
+    if(spikes.length>3||r.max>15000)sev='warning';
+    if(stuck&&changes===0)sev='warning';
+
+    addResult('波形信号 ['+sig.axName+']',shortName,sev,h);
+  }
+
+  // 信号间相关性分析 (如果有多个信号)
+  if(activeSigs.length>=2){
+    for(var i=0;i<activeSigs.length;i++){
+      for(var j=i+1;j<activeSigs.length;j++){
+        var d1=activeSigs[i].data,d2=activeSigs[j].data;
+        // 简单相关系数计算
+        var n=Math.min(d1.length,d2.length,500);
+        if(n<10)continue;
+        var sum1=0,sum2=0,sum12=0,sum11=0,sum22=0;
+        for(var k=0;k<n;k++){
+          var i1=Math.floor(k*d1.length/n),i2=Math.floor(k*d2.length/n);
+          var v1=d1[i1].v,v2=d2[i2].v;
+          sum1+=v1;sum2+=v2;sum12+=v1*v2;sum11+=v1*v1;sum22+=v2*v2;
+        }
+        var mean1=sum1/n,mean2=sum2/n;
+        var cov=sum12/n-mean1*mean2;
+        var sd1=Math.sqrt(sum11/n-mean1*mean1);
+        var sd2=Math.sqrt(sum22/n-mean2*mean2);
+        var corr=sd1>0&&sd2>0?cov/(sd1*sd2):0;
+
+        if(Math.abs(corr)>0.7){
+          var n1=activeSigs[i].full.split('.').slice(1).join('.');
+          var n2=activeSigs[j].full.split('.').slice(1).join('.');
+          var corrSev=Math.abs(corr)>0.9?'info':'info';
+          var corrLabel=corr>0?'正相关':'负相关';
+          addResult('信号关联','信号间'+corrLabel+' ('+(Math.abs(corr)*100).toFixed(0)+'%)',corrSev,
+            '<span class="hl">'+n1+'</span> 与 <span class="hl">'+n2+'</span><br>相关系数: <span class="hl">'+corr.toFixed(3)+'</span> ('+corrLabel+')');
+        }
+      }
+    }
+  }
+
+  renderAiResults(results,stats,0);
+}
+
+// 波形信号分析按钮事件
+$('aiWaveBtn').addEventListener('click',function(){
+  if(!S.ok)return;
+  $('aiResults').innerHTML='<div class="ai-progress">正在分析波形信号<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  $('aiResults').style.display='';
+  $('aiEmpty').style.display='none';
+  setTimeout(function(){runWaveSigAnalysis()},100);
+});
+
 // 解析完成后启用AI按钮
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v3.9 2026-04-09 09:55 交互式模式配置");
+console.log("CAN分析工具 v3.9 2026-04-09 09:55 交互式模式配置 + 波形信号详细分析");
 })();
 </script>
 </body>
