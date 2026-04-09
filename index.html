@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v3.8 2026-04-09 09:50</title>
+<title>CAN分析工具 v3.9 2026-04-09 09:55</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -225,6 +225,14 @@ body{display:flex;flex-direction:column}
 .ai-desc-input:focus{border-color:#00d4ff;outline:none}
 .ai-desc-input::placeholder{color:#444}
 .ai-desc-btn{flex-shrink:0;min-height:36px;padding:8px 14px}
+.ai-config{background:#111218;border-radius:12px;padding:12px;margin-bottom:12px;border:0.5px solid #00d4ff44}
+.ai-config-title{font-size:13px;font-weight:600;color:#00d4ff;margin-bottom:10px}
+.ai-config-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px}
+.ai-config-row label{color:#888;min-width:40px;text-align:right}
+.ai-config-row input{flex:1;background:#0a0a14;border:0.5px solid #2a2a3a;color:#ddd;padding:6px 8px;border-radius:6px;font-size:12px;-webkit-appearance:none;max-width:160px}
+.ai-config-row input:focus{border-color:#00d4ff;outline:none}
+.ai-config-row input::placeholder{color:#444}
+.ai-config-hint{font-size:10px;color:#555;margin-bottom:8px}
 .ai-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#444;padding:40px 20px;gap:8px;font-size:13px;text-align:center}
 .ai-summary{background:#111218;border-radius:14px;padding:14px;margin-bottom:12px;border:0.5px solid #2a2a3a}
 .ai-summary-hdr{font-size:13px;font-weight:700;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:6px}
@@ -301,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.8 04-09 09:50</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.9 04-09 09:55</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -394,6 +402,11 @@ body{display:flex;flex-direction:column}
       <div class="ai-desc-box">
         <textarea id="aiDescInput" class="ai-desc-input" placeholder="描述问题现象，例如：&#10;• 电机转速突然下降&#10;• 扭矩响应跟不上指令&#10;• 电控温度异常升高&#10;• 使能后MCU未响应&#10;• 母线电压波动大"></textarea>
         <button class="ai-run-btn ai-desc-btn" id="aiDescBtn" disabled>🔍 智能分析</button>
+      </div>
+      <div class="ai-config" id="aiConfig" style="display:none">
+        <div class="ai-config-title">⚙️ 分析参数配置</div>
+        <div id="aiConfigBody"></div>
+        <button class="ai-run-btn" id="aiConfigConfirm" style="width:100%;margin-top:8px">✅ 确认并开始分析</button>
       </div>
       <div class="ai-empty" id="aiEmpty"><div class="es-icon">🔬</div><div>请先上传并解析数据</div><div style="font-size:11px;color:#555">全量诊断或输入问题描述进行智能分析</div></div>
       <div id="aiResults" style="display:none"></div>
@@ -3101,30 +3114,34 @@ function runDescAnalysis(desc){
     }
 
     // VCU转速指令 vs MCU转速响应 (根据控制模式)
-    if(vcuSpd.length&&mcuSpd.length){
-      var vd=vcuSpd[0].data,md=mcuSpd[0].data;
-      // 查找转速控制模式
-      var isSpdMode=false;
-      if(vcuMode.length){
-        var modeR=valRange(vcuMode[0].data);
-        // 通常转速模式=1, 扭矩模式=2
-        isSpdMode=(modeR.max===1&&modeR.min===1)||(modeR.avg>0.5&&modeR.avg<1.5);
+    if(vcuSpd.length&&mcuSpd.length&&vcuMode.length){
+      var vd=vcuSpd[0].data,md=mcuSpd[0].data,modd=vcuMode[0].data;
+      var modeMap=AI_CONFIG.ctrlModeMap||{};
+      // 找出所有出现过的模式
+      var modeStats={};
+      for(var j=0;j<modd.length;j++){
+        var mv=modd[j].v;
+        if(!modeStats[mv])modeStats[mv]=0;
+        modeStats[mv]++;
       }
-      if(isSpdMode){
-        // 转速控制模式下, 分析MCU是否跟踪VCU指令
-        var maxDev=0,maxDevT=0;
-        for(var j=0;j<Math.min(vd.length,md.length);j++){
-          var vi=Math.floor(j*vd.length/Math.min(vd.length,md.length));
-          var mi=Math.floor(j*md.length/Math.min(vd.length,md.length));
+      // 分析每种模式下的指令-响应
+      for(var mv in modeStats){
+        var label=modeMap[mv]||('模式'+mv);
+        var isSpd=label.indexOf('转速')>=0||label.indexOf('spd')>=0||label.indexOf('speed')>=0;
+        if(!isSpd)continue;
+        // 在该模式下采集偏差
+        var maxDev=0,maxDevT=0,cnt=Math.min(vd.length,md.length,500);
+        for(var j=0;j<cnt;j++){
+          var vi=Math.floor(j*vd.length/cnt);
+          var mi=Math.floor(j*md.length/cnt);
+          var mvi=Math.floor(j*modd.length/cnt);
+          if(Math.round(modd[mvi].v)!==parseInt(mv))continue;
           var dev=Math.abs(md[mi].v-vd[vi].v);
           if(dev>maxDev){maxDev=dev;maxDevT=vd[vi].t}
         }
-        addResult('转速分析','转速模式下指令-响应','info',
+        addResult('转速分析','转速模式(值='+mv+')指令-响应','info',
           'VCU指令 vs MCU响应 最大偏差 <span class="hl">'+maxDev.toFixed(0)+' rpm</span> @ '+fmtTime(maxDevT)+
           (maxDev>2000?' <span class="warn">⚠ 偏差过大</span>':''));
-      }else{
-        addResult('转速分析','当前非转速控制模式','info',
-          '转速指令-响应对比仅在转速控制模式下有意义');
       }
     }
   }
@@ -3154,28 +3171,31 @@ function runDescAnalysis(desc){
     }
 
     // VCU扭矩指令 vs MCU扭矩响应 (根据控制模式)
-    if(vcuTrq.length&&mcuTrq.length){
-      var vd=vcuTrq[0].data,md=mcuTrq[0].data;
-      var isTrqMode=false;
-      if(vcuMode.length){
-        var modeR2=valRange(vcuMode[0].data);
-        isTrqMode=(modeR2.max===2&&modeR2.min===2)||(modeR2.avg>1.5&&modeR2.avg<2.5);
+    if(vcuTrq.length&&mcuTrq.length&&vcuMode.length){
+      var vd=vcuTrq[0].data,md=mcuTrq[0].data,modd=vcuMode[0].data;
+      var modeMap=AI_CONFIG.ctrlModeMap||{};
+      var modeStats={};
+      for(var j=0;j<modd.length;j++){
+        var mv=modd[j].v;
+        if(!modeStats[mv])modeStats[mv]=0;
+        modeStats[mv]++;
       }
-      if(isTrqMode){
-        var maxDev2=0,maxDevT2=0;
-        var cnt=Math.min(vd.length,md.length,500);
+      for(var mv in modeStats){
+        var label=modeMap[mv]||('模式'+mv);
+        var isTrq=label.indexOf('扭矩')>=0||label.indexOf('torque')>=0||label.indexOf('trq')>=0;
+        if(!isTrq)continue;
+        var maxDev=0,maxDevT=0,cnt=Math.min(vd.length,md.length,500);
         for(var j=0;j<cnt;j++){
-          var vi2=Math.floor(j*vd.length/cnt);
-          var mi2=Math.floor(j*md.length/cnt);
-          var dev2=Math.abs(md[mi2].v-vd[vi2].v);
-          if(dev2>maxDev2){maxDev2=dev2;maxDevT2=vd[vi2].t}
+          var vi=Math.floor(j*vd.length/cnt);
+          var mi=Math.floor(j*md.length/cnt);
+          var mvi=Math.floor(j*modd.length/cnt);
+          if(Math.round(modd[mvi].v)!==parseInt(mv))continue;
+          var dev=Math.abs(md[mi].v-vd[vi].v);
+          if(dev>maxDev){maxDev=dev;maxDevT=vd[vi].t}
         }
-        addResult('扭矩分析','扭矩模式下指令-响应','info',
-          'VCU指令 vs MCU响应 最大偏差 <span class="hl">'+maxDev2.toFixed(1)+' Nm</span> @ '+fmtTime(maxDevT2)+
-          (maxDev2>500?' <span class="warn">⚠ 偏差过大，响应可能不正常</span>':''));
-      }else{
-        addResult('扭矩分析','当前非扭矩控制模式','info',
-          '扭矩指令-响应对比仅在扭矩控制模式下有意义');
+        addResult('扭矩分析','扭矩模式(值='+mv+')指令-响应','info',
+          'VCU指令 vs MCU响应 最大偏差 <span class="hl">'+maxDev.toFixed(1)+' Nm</span> @ '+fmtTime(maxDevT)+
+          (maxDev>500?' <span class="warn">⚠ 偏差过大，响应可能不正常</span>':''));
       }
     }
   }
@@ -3396,31 +3416,80 @@ function findMaxLag(cmdData,respData){
   return lagCnt>0?lagSum/lagCnt:0;
 }
 
+// 分析配置
+var AI_CONFIG={
+  ctrlModeMap:null, // {0:'待机',1:'转速控制',2:'扭矩控制',3:'主动放电'}
+  pendingDesc:null,
+  pendingType:null // 'full' or 'desc'
+};
+
+// 显示控制模式配置
+function showCtrlModeConfig(callback){
+  var vcuMode=findSignals('vcu_mode');
+  if(!vcuMode.length||AI_CONFIG.ctrlModeMap){
+    callback();return;
+  }
+  var modeVals={};
+  var d=vcuMode[0].data;
+  for(var i=0;i<d.length;i++)modeVals[d[i].v]=true;
+  var values=Object.keys(modeVals).map(Number).sort(function(a,b){return a-b});
+
+  var h='<div class="ai-config-hint">检测到控制模式信号 <span style="color:#00d4ff">'+vcuMode[0].full+'</span>，请定义各值含义：</div>';
+  for(var i=0;i<values.length;i++){
+    h+='<div class="ai-config-row"><label>值 '+values[i]+'</label><input type="text" class="ai-mode-input" data-val="'+values[i]+'" placeholder="例如: 待机/转速控制/扭矩控制/放电"></div>';
+  }
+  $('aiConfigBody').innerHTML=h;
+  $('aiConfig').style.display='';
+  $('aiResults').style.display='none';
+  $('aiEmpty').style.display='none';
+
+  $('aiConfigConfirm').onclick=function(){
+    var map={};
+    var inputs=document.querySelectorAll('.ai-mode-input');
+    for(var i=0;i<inputs.length;i++){
+      var val=parseInt(inputs[i].dataset.val);
+      var label=inputs[i].value.trim()||'未知';
+      map[val]=label;
+    }
+    AI_CONFIG.ctrlModeMap=map;
+    $('aiConfig').style.display='none';
+    callback();
+  };
+}
+
 // 智能分析按钮事件
 $('aiDescBtn').addEventListener('click',function(){
   if(!S.ok)return;
   var desc=$('aiDescInput').value.trim();
-  if(!desc){runAiAnalysis();return}
-  $('aiResults').innerHTML='<div class="ai-progress">正在分析「'+desc.substring(0,20)+'...」<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
-  $('aiResults').style.display='';
-  $('aiEmpty').style.display='none';
-  setTimeout(function(){runDescAnalysis(desc)},200);
+  AI_CONFIG.pendingDesc=desc;
+  AI_CONFIG.pendingType=desc?'desc':'full';
+  showCtrlModeConfig(function(){
+    if(AI_CONFIG.pendingType==='full'){
+      runAiAnalysis();
+    }else{
+      $('aiResults').innerHTML='<div class="ai-progress">正在分析「'+AI_CONFIG.pendingDesc.substring(0,20)+'...」<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+      $('aiResults').style.display='';
+      $('aiEmpty').style.display='none';
+      setTimeout(function(){runDescAnalysis(AI_CONFIG.pendingDesc)},200);
+    }
+  });
 });
 
-// AI按钮事件
+// 全量诊断按钮也走配置流程
 $('aiRunBtn').addEventListener('click',function(){
   if(!S.ok)return;
-  $('aiResults').innerHTML='<div class="ai-progress">正在分析<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
-  $('aiResults').style.display='';
-  $('aiEmpty').style.display='none';
-  setTimeout(runAiAnalysis,200);
+  AI_CONFIG.pendingDesc=null;
+  AI_CONFIG.pendingType='full';
+  showCtrlModeConfig(function(){
+    runAiAnalysis();
+  });
 });
 
 // 解析完成后启用AI按钮
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v3.8 2026-04-09 09:50 模式关联分析");
+console.log("CAN分析工具 v3.9 2026-04-09 09:55 交互式模式配置");
 })();
 </script>
 </body>
