@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v3.7 2026-04-09 09:42</title>
+<title>CAN分析工具 v3.8 2026-04-09 09:50</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -301,7 +301,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.7 04-09 09:42</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.8 04-09 09:50</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -3079,41 +3079,52 @@ function runDescAnalysis(desc){
   if(matchedActions.analyze_speed_desc){
     var vcuSpd=findSignals('vcu_speed');
     var mcuSpd=findSignals('mcu_speed');
-    var allSpd=findSignals('speed');
+    var vcuMode=findSignals('vcu_mode');
 
-    // 转速突变检测
-    var targets=mcuSpd.length?mcuSpd:(allSpd.length?allSpd:[]);
-    for(var i=0;i<targets.length;i++){
-      var d=targets[i].data;
+    // MCU转速突变检测
+    for(var i=0;i<mcuSpd.length;i++){
+      var d=mcuSpd[i].data;
       var spikes=detectSpikes(d,0.15);
       if(spikes.length>0){
         var worst=spikes[0];
         for(var s=1;s<spikes.length;s++){if(Math.abs(spikes[s].delta)>Math.abs(worst.delta))worst=spikes[s]}
-        addResult('转速分析','检测到转速突变','warning',
-          '<span class="hl">'+targets[i].full+'</span><br>共 <span class="warn">'+spikes.length+'次</span> 突变<br>最大突变: <span class="warn">'+worst.from.toFixed(0)+'→'+worst.to.toFixed(0)+' rpm</span> (Δ'+worst.delta.toFixed(0)+') @ '+fmtTime(worst.t));
-      }else{
-        addResult('转速分析','转速无异常突变','ok',
-          '<span class="hl">'+targets[i].full+'</span> 未检测到超过15%范围的突变');
+        addResult('转速分析','MCU转速突变','warning',
+          '<span class="hl">'+mcuSpd[i].full+'</span><br>共 <span class="warn">'+spikes.length+'次</span> 突变<br>最大: <span class="warn">'+worst.from.toFixed(0)+'→'+worst.to.toFixed(0)+' rpm</span> (Δ'+worst.delta.toFixed(0)+') @ '+fmtTime(worst.t));
       }
-
-      // 转速过零检测
+      // 转速过零
       var zeroCross=0;
-      for(var j=1;j<d.length;j++){
-        if((d[j-1].v>0&&d[j].v<=0)||(d[j-1].v<0&&d[j].v>=0))zeroCross++;
-      }
+      for(var j=1;j<d.length;j++){if((d[j-1].v>0&&d[j].v<=0)||(d[j-1].v<0&&d[j].v>=0))zeroCross++}
       if(zeroCross>3){
         addResult('转速分析','转速频繁过零','warning',
-          '<span class="hl">'+targets[i].full+'</span> 正反转切换 <span class="warn">'+zeroCross+'次</span>');
+          '<span class="hl">'+mcuSpd[i].full+'</span> 正反转切换 <span class="warn">'+zeroCross+'次</span>');
       }
     }
 
-    // 指令-响应偏差
+    // VCU转速指令 vs MCU转速响应 (根据控制模式)
     if(vcuSpd.length&&mcuSpd.length){
       var vd=vcuSpd[0].data,md=mcuSpd[0].data;
-      var maxLag=findMaxLag(vd,md);
-      if(maxLag>0.1){
-        addResult('转速分析','转速响应延迟','warning',
-          'VCU指令→MCU响应 最大延迟约 <span class="warn">'+(maxLag*1000).toFixed(0)+'ms</span>');
+      // 查找转速控制模式
+      var isSpdMode=false;
+      if(vcuMode.length){
+        var modeR=valRange(vcuMode[0].data);
+        // 通常转速模式=1, 扭矩模式=2
+        isSpdMode=(modeR.max===1&&modeR.min===1)||(modeR.avg>0.5&&modeR.avg<1.5);
+      }
+      if(isSpdMode){
+        // 转速控制模式下, 分析MCU是否跟踪VCU指令
+        var maxDev=0,maxDevT=0;
+        for(var j=0;j<Math.min(vd.length,md.length);j++){
+          var vi=Math.floor(j*vd.length/Math.min(vd.length,md.length));
+          var mi=Math.floor(j*md.length/Math.min(vd.length,md.length));
+          var dev=Math.abs(md[mi].v-vd[vi].v);
+          if(dev>maxDev){maxDev=dev;maxDevT=vd[vi].t}
+        }
+        addResult('转速分析','转速模式下指令-响应','info',
+          'VCU指令 vs MCU响应 最大偏差 <span class="hl">'+maxDev.toFixed(0)+' rpm</span> @ '+fmtTime(maxDevT)+
+          (maxDev>2000?' <span class="warn">⚠ 偏差过大</span>':''));
+      }else{
+        addResult('转速分析','当前非转速控制模式','info',
+          '转速指令-响应对比仅在转速控制模式下有意义');
       }
     }
   }
@@ -3122,19 +3133,49 @@ function runDescAnalysis(desc){
   if(matchedActions.analyze_torque_desc){
     var vcuTrq=findSignals('vcu_torque');
     var mcuTrq=findSignals('mcu_torque');
+    var vcuMode=findSignals('vcu_mode');
 
+    // MCU扭矩突变检测
     for(var i=0;i<mcuTrq.length;i++){
       var d=mcuTrq[i].data;
       var spikes=detectSpikes(d,0.2);
       if(spikes.length>0){
-        addResult('扭矩分析','扭矩输出突变','warning',
-          '<span class="hl">'+mcuTrq[i].full+'</span> 检测到 <span class="warn">'+spikes.length+'次</span> 突变');
+        var worst=spikes[0];
+        for(var s=1;s<spikes.length;s++){if(Math.abs(spikes[s].delta)>Math.abs(worst.delta))worst=spikes[s]}
+        addResult('扭矩分析','MCU扭矩突变','warning',
+          '<span class="hl">'+mcuTrq[i].full+'</span><br>共 <span class="warn">'+spikes.length+'次</span> 突变<br>最大: <span class="warn">'+worst.from.toFixed(1)+'→'+worst.to.toFixed(1)+' Nm</span> @ '+fmtTime(worst.t));
       }
-      // 扭矩限幅检测
+      // 扭矩被钳制
       var r=valRange(d);
       if(r.max===r.min&&d.length>20){
         addResult('扭矩分析','扭矩被钳制','error',
           '<span class="hl">'+mcuTrq[i].full+'</span> 全程恒定 <span class="err">'+r.max.toFixed(1)+'</span>，可能被限幅或堵转');
+      }
+    }
+
+    // VCU扭矩指令 vs MCU扭矩响应 (根据控制模式)
+    if(vcuTrq.length&&mcuTrq.length){
+      var vd=vcuTrq[0].data,md=mcuTrq[0].data;
+      var isTrqMode=false;
+      if(vcuMode.length){
+        var modeR2=valRange(vcuMode[0].data);
+        isTrqMode=(modeR2.max===2&&modeR2.min===2)||(modeR2.avg>1.5&&modeR2.avg<2.5);
+      }
+      if(isTrqMode){
+        var maxDev2=0,maxDevT2=0;
+        var cnt=Math.min(vd.length,md.length,500);
+        for(var j=0;j<cnt;j++){
+          var vi2=Math.floor(j*vd.length/cnt);
+          var mi2=Math.floor(j*md.length/cnt);
+          var dev2=Math.abs(md[mi2].v-vd[vi2].v);
+          if(dev2>maxDev2){maxDev2=dev2;maxDevT2=vd[vi2].t}
+        }
+        addResult('扭矩分析','扭矩模式下指令-响应','info',
+          'VCU指令 vs MCU响应 最大偏差 <span class="hl">'+maxDev2.toFixed(1)+' Nm</span> @ '+fmtTime(maxDevT2)+
+          (maxDev2>500?' <span class="warn">⚠ 偏差过大，响应可能不正常</span>':''));
+      }else{
+        addResult('扭矩分析','当前非扭矩控制模式','info',
+          '扭矩指令-响应对比仅在扭矩控制模式下有意义');
       }
     }
   }
@@ -3160,24 +3201,26 @@ function runDescAnalysis(desc){
     }
   }
 
-  // 电压相关分析
+  // 电压相关分析 - 主要检测突变
   if(matchedActions.analyze_volt_desc){
     var mcuVolt=findSignals('mcu_dc_voltage');
     for(var i=0;i<mcuVolt.length;i++){
       var d=mcuVolt[i].data;
-      var variance=calcVariance(d);
       var r=valRange(d);
-      var ripple=r.max-r.min;
-      if(ripple>50){
-        addResult('电压分析','母线电压波动大','warning',
-          '<span class="hl">'+mcuVolt[i].full+'</span><br>峰峰值波动 <span class="warn">'+ripple.toFixed(1)+'V</span> ('+r.min.toFixed(1)+'~'+r.max.toFixed(1)+'V)');
-      }
-      // 突变
-      var spikes=detectSpikes(d,0.05);
+      // 突变检测(主要)
+      var spikes=detectSpikes(d,0.03);
       if(spikes.length>0){
-        addResult('电压分析','电压突变检测','warning',
-          '<span class="hl">'+mcuVolt[i].full+'</span> 检测到 <span class="warn">'+spikes.length+'次</span> 突变');
+        var worst=spikes[0];
+        for(var s=1;s<spikes.length;s++){if(Math.abs(spikes[s].delta)>Math.abs(worst.delta))worst=spikes[s]}
+        addResult('电压分析','母线电压突变','warning',
+          '<span class="hl">'+mcuVolt[i].full+'</span><br>共 <span class="warn">'+spikes.length+'次</span> 突变<br>最大: <span class="warn">'+worst.from.toFixed(1)+'→'+worst.to.toFixed(1)+' V</span> (Δ'+worst.delta.toFixed(1)+') @ '+fmtTime(worst.t));
+      }else{
+        addResult('电压分析','母线电压无突变','ok',
+          '<span class="hl">'+mcuVolt[i].full+'</span> 未检测到超过3%范围的突变');
       }
+      // 电压范围
+      addResult('电压分析','母线电压范围','info',
+        '<span class="hl">'+mcuVolt[i].full+'</span> '+r.min.toFixed(1)+'V ~ '+r.max.toFixed(1)+'V');
     }
   }
 
@@ -3377,7 +3420,7 @@ $('aiRunBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v3.7 2026-04-09 09:42 智能描述分析");
+console.log("CAN分析工具 v3.8 2026-04-09 09:50 模式关联分析");
 })();
 </script>
 </body>
