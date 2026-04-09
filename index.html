@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v3.6 2026-04-09 09:38</title>
+<title>CAN分析工具 v3.7 2026-04-09 09:42</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -220,6 +220,11 @@ body{display:flex;flex-direction:column}
 .ai-run-btn{padding:8px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#00d4ff,#0088cc);color:#000;font-size:13px;font-weight:700;cursor:pointer;min-height:36px;-webkit-appearance:none}
 .ai-run-btn:active{transform:scale(0.96)}
 .ai-run-btn:disabled{opacity:.3;cursor:not-allowed;background:#333;color:#666}
+.ai-desc-box{background:#111218;border-radius:12px;padding:10px;margin-bottom:12px;border:0.5px solid #2a2a3a;display:flex;gap:8px;align-items:flex-end}
+.ai-desc-input{flex:1;background:#0a0a14;border:0.5px solid #2a2a3a;color:#ddd;padding:8px 10px;border-radius:8px;font-size:12px;min-height:60px;max-height:120px;resize:vertical;-webkit-appearance:none;font-family:inherit;line-height:1.5}
+.ai-desc-input:focus{border-color:#00d4ff;outline:none}
+.ai-desc-input::placeholder{color:#444}
+.ai-desc-btn{flex-shrink:0;min-height:36px;padding:8px 14px}
 .ai-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#444;padding:40px 20px;gap:8px;font-size:13px;text-align:center}
 .ai-summary{background:#111218;border-radius:14px;padding:14px;margin-bottom:12px;border:0.5px solid #2a2a3a}
 .ai-summary-hdr{font-size:13px;font-weight:700;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:6px}
@@ -296,7 +301,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.6 04-09 09:38</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.7 04-09 09:42</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -384,9 +389,13 @@ body{display:flex;flex-direction:column}
     <div class="ai-page" id="aiContent">
       <div class="ai-header">
         <div class="ai-title">🔬 智能诊断分析</div>
-        <button class="ai-run-btn" id="aiRunBtn" disabled>▶ 开始诊断</button>
+        <button class="ai-run-btn" id="aiRunBtn" disabled>▶ 全量诊断</button>
       </div>
-      <div class="ai-empty" id="aiEmpty"><div class="es-icon">🔬</div><div>请先上传并解析数据</div><div style="font-size:11px;color:#555">解析后点击「开始诊断」自动分析各控制器指令-响应关系</div></div>
+      <div class="ai-desc-box">
+        <textarea id="aiDescInput" class="ai-desc-input" placeholder="描述问题现象，例如：&#10;• 电机转速突然下降&#10;• 扭矩响应跟不上指令&#10;• 电控温度异常升高&#10;• 使能后MCU未响应&#10;• 母线电压波动大"></textarea>
+        <button class="ai-run-btn ai-desc-btn" id="aiDescBtn" disabled>🔍 智能分析</button>
+      </div>
+      <div class="ai-empty" id="aiEmpty"><div class="es-icon">🔬</div><div>请先上传并解析数据</div><div style="font-size:11px;color:#555">全量诊断或输入问题描述进行智能分析</div></div>
       <div id="aiResults" style="display:none"></div>
     </div>
   </div>
@@ -745,7 +754,7 @@ function switchPage(page){
 
   if(page==='chart'){rAxBar();rSigPanel();sch()}
   if(page==='proto')rProto();
-  if(page==='ai'){if(S.ok)$('aiRunBtn').disabled=false}
+  if(page==='ai'){if(S.ok){$('aiRunBtn').disabled=false;$('aiDescBtn').disabled=false}}
 }
 
 // ====== Drawer ======
@@ -1095,6 +1104,7 @@ $('goBtn').addEventListener('click',async function(){
     S.ok=true;
     uSt();rChSel();rIdList();rSigPanel();rProto();
     $('aiRunBtn').disabled=false;
+    $('aiDescBtn').disabled=false;
     switchPage('chart');
     $('dtSig').click();
     $('drawer').classList.add('show');$('drawerOverlay').classList.add('show');
@@ -2957,6 +2967,403 @@ function renderAiResults(results,stats,duration){
   });
 }
 
+// ====== 智能描述分析引擎 ======
+
+// 检测信号值的突变(陡降/陡升)
+function detectSpikes(sigData,minDeltaPct){
+  if(!sigData||sigData.length<5)return[];
+  var spikes=[];
+  var r=valRange(sigData);
+  var range=r.max-r.min||1;
+  var threshold=range*(minDeltaPct||0.2);
+  for(var i=2;i<sigData.length-2;i++){
+    var prev= sigData[i-1].v;
+    var curr= sigData[i].v;
+    var next= sigData[i+1].v;
+    var jump=Math.abs(curr-prev);
+    var back=Math.abs(next-curr);
+    if(jump>threshold&&back<jump*0.5){
+      spikes.push({t:sigData[i].t,from:prev,to:curr,delta:curr-prev});
+    }
+  }
+  return spikes;
+}
+
+// 检测信号值持续偏高/偏低
+function detectOutOfRange(sigData,low,high){
+  if(!sigData||!sigData.length)return{count:0,pct:0};
+  var cnt=0;
+  for(var i=0;i<sigData.length;i++){
+    if((low!==null&&sigData[i].v<low)||(high!==null&&sigData[i].v>high))cnt++;
+  }
+  return{count:cnt,pct:cnt/sigData.length};
+}
+
+// 检测信号值波动(方差)
+function calcVariance(sigData){
+  if(!sigData||sigData.length<2)return 0;
+  var sum=0,sum2=0;
+  for(var i=0;i<sigData.length;i++){
+    sum+=sigData[i].v;
+    sum2+=sigData[i].v*sigData[i].v;
+  }
+  var n=sigData.length;
+  return(sum2/n-(sum/n)*(sum/n));
+}
+
+// 查找信号值变化最剧烈的时间段
+function findWorstPeriod(sigData,windowSize){
+  if(!sigData||sigData.length<windowSize)return null;
+  var maxVar=0,maxStart=0;
+  for(var i=0;i<=sigData.length-windowSize;i++){
+    var window=sigData.slice(i,i+windowSize);
+    var v=calcVariance(window);
+    if(v>maxVar){maxVar=v;maxStart=i}
+  }
+  return{startIdx:maxStart,startT:sigData[maxStart].t,endT:sigData[Math.min(maxStart+windowSize-1,sigData.length-1).t],variance:maxVar};
+}
+
+// 描述分析规则库
+var DESC_RULES=[
+  {keywords:['转速','速度','spd','speed','rpm'],actions:['analyze_speed_desc']},
+  {keywords:['扭矩','力矩','trq','torque','扭力'],actions:['analyze_torque_desc']},
+  {keywords:['温度','过温','发热','高温','temp','热'],actions:['analyze_temp_desc']},
+  {keywords:['电压','母线','波动','欠压','过压','volt'],actions:['analyze_volt_desc']},
+  {keywords:['电流','过流','current'],actions:['analyze_current_desc']},
+  {keywords:['使能','enable','启动','响应','ready','不工作'],actions:['analyze_enable_desc']},
+  {keywords:['故障','报警','error','fault','dtc','停机','保护'],actions:['analyze_fault_desc']},
+  {keywords:['模式','控制','ctrl','mode','切换'],actions:['analyze_mode_desc']},
+  {keywords:['放电','discharge','充电'],actions:['analyze_discharge_desc']},
+  {keywords:['抖动','波动','震荡','不稳定','跳动','摆动'],actions:['analyze_oscillation_desc']},
+  {keywords:['延迟','滞后','慢','跟不上','响应差'],actions:['analyze_lag_desc']},
+  {keywords:['下降','降低','掉','跌','减小','减低'],actions:['analyze_drop_desc']},
+  {keywords:['升高','上升','增加','增长','偏高'],actions:['analyze_rise_desc']}
+];
+
+function runDescAnalysis(desc){
+  if(!S.ok||!desc)return;
+  var descLower=desc.toLowerCase();
+  var matchedActions={};
+
+  // 匹配关键词
+  for(var i=0;i<DESC_RULES.length;i++){
+    var rule=DESC_RULES[i];
+    for(var j=0;j<rule.keywords.length;j++){
+      if(descLower.indexOf(rule.keywords[j])>=0){
+        for(var k=0;k<rule.actions.length;k++){
+          matchedActions[rule.actions[k]]=true;
+        }
+        break;
+      }
+    }
+  }
+
+  // 如果没有匹配到任何关键词，执行全量诊断
+  if(Object.keys(matchedActions).length===0){
+    runAiAnalysis();
+    return;
+  }
+
+  var results=[];
+  var stats={checks:0,warnings:0,errors:0,ok:0};
+
+  function addResult(category,title,severity,detail){
+    results.push({category:category,title:title,severity:severity,detail:detail});
+    stats.checks++;
+    if(severity==='ok')stats.ok++;
+    if(severity==='warning')stats.warnings++;
+    if(severity==='error')stats.errors++;
+  }
+
+  // 转速相关分析
+  if(matchedActions.analyze_speed_desc){
+    var vcuSpd=findSignals('vcu_speed');
+    var mcuSpd=findSignals('mcu_speed');
+    var allSpd=findSignals('speed');
+
+    // 转速突变检测
+    var targets=mcuSpd.length?mcuSpd:(allSpd.length?allSpd:[]);
+    for(var i=0;i<targets.length;i++){
+      var d=targets[i].data;
+      var spikes=detectSpikes(d,0.15);
+      if(spikes.length>0){
+        var worst=spikes[0];
+        for(var s=1;s<spikes.length;s++){if(Math.abs(spikes[s].delta)>Math.abs(worst.delta))worst=spikes[s]}
+        addResult('转速分析','检测到转速突变','warning',
+          '<span class="hl">'+targets[i].full+'</span><br>共 <span class="warn">'+spikes.length+'次</span> 突变<br>最大突变: <span class="warn">'+worst.from.toFixed(0)+'→'+worst.to.toFixed(0)+' rpm</span> (Δ'+worst.delta.toFixed(0)+') @ '+fmtTime(worst.t));
+      }else{
+        addResult('转速分析','转速无异常突变','ok',
+          '<span class="hl">'+targets[i].full+'</span> 未检测到超过15%范围的突变');
+      }
+
+      // 转速过零检测
+      var zeroCross=0;
+      for(var j=1;j<d.length;j++){
+        if((d[j-1].v>0&&d[j].v<=0)||(d[j-1].v<0&&d[j].v>=0))zeroCross++;
+      }
+      if(zeroCross>3){
+        addResult('转速分析','转速频繁过零','warning',
+          '<span class="hl">'+targets[i].full+'</span> 正反转切换 <span class="warn">'+zeroCross+'次</span>');
+      }
+    }
+
+    // 指令-响应偏差
+    if(vcuSpd.length&&mcuSpd.length){
+      var vd=vcuSpd[0].data,md=mcuSpd[0].data;
+      var maxLag=findMaxLag(vd,md);
+      if(maxLag>0.1){
+        addResult('转速分析','转速响应延迟','warning',
+          'VCU指令→MCU响应 最大延迟约 <span class="warn">'+(maxLag*1000).toFixed(0)+'ms</span>');
+      }
+    }
+  }
+
+  // 扭矩相关分析
+  if(matchedActions.analyze_torque_desc){
+    var vcuTrq=findSignals('vcu_torque');
+    var mcuTrq=findSignals('mcu_torque');
+
+    for(var i=0;i<mcuTrq.length;i++){
+      var d=mcuTrq[i].data;
+      var spikes=detectSpikes(d,0.2);
+      if(spikes.length>0){
+        addResult('扭矩分析','扭矩输出突变','warning',
+          '<span class="hl">'+mcuTrq[i].full+'</span> 检测到 <span class="warn">'+spikes.length+'次</span> 突变');
+      }
+      // 扭矩限幅检测
+      var r=valRange(d);
+      if(r.max===r.min&&d.length>20){
+        addResult('扭矩分析','扭矩被钳制','error',
+          '<span class="hl">'+mcuTrq[i].full+'</span> 全程恒定 <span class="err">'+r.max.toFixed(1)+'</span>，可能被限幅或堵转');
+      }
+    }
+  }
+
+  // 温度相关分析
+  if(matchedActions.analyze_temp_desc){
+    var allTemps=findSignals('temperature');
+    for(var i=0;i<allTemps.length;i++){
+      var d=allTemps[i].data,r=valRange(d);
+      if(r.max>200||r.min<-60)continue;
+      // 温升速率
+      if(d.length>10){
+        var first10Avg=0,last10Avg=0;
+        for(var j=0;j<10;j++){first10Avg+=d[j].v;last10Avg+=d[d.length-1-j].v}
+        first10Avg/=10;last10Avg/=10;
+        var dt=d[d.length-1].t-d[0].t;
+        var rate=dt>0?(last10Avg-first10Avg)/dt:0;
+        if(rate>0.5){
+          addResult('温度分析','温升速率偏高','warning',
+            '<span class="hl">'+allTemps[i].full+'</span> 温升速率 <span class="warn">'+rate.toFixed(2)+'°C/s</span> ('+first10Avg.toFixed(1)+'→'+last10Avg.toFixed(1)+'°C)');
+        }
+      }
+    }
+  }
+
+  // 电压相关分析
+  if(matchedActions.analyze_volt_desc){
+    var mcuVolt=findSignals('mcu_dc_voltage');
+    for(var i=0;i<mcuVolt.length;i++){
+      var d=mcuVolt[i].data;
+      var variance=calcVariance(d);
+      var r=valRange(d);
+      var ripple=r.max-r.min;
+      if(ripple>50){
+        addResult('电压分析','母线电压波动大','warning',
+          '<span class="hl">'+mcuVolt[i].full+'</span><br>峰峰值波动 <span class="warn">'+ripple.toFixed(1)+'V</span> ('+r.min.toFixed(1)+'~'+r.max.toFixed(1)+'V)');
+      }
+      // 突变
+      var spikes=detectSpikes(d,0.05);
+      if(spikes.length>0){
+        addResult('电压分析','电压突变检测','warning',
+          '<span class="hl">'+mcuVolt[i].full+'</span> 检测到 <span class="warn">'+spikes.length+'次</span> 突变');
+      }
+    }
+  }
+
+  // 电流相关分析
+  if(matchedActions.analyze_current_desc){
+    var mcuCurr=findSignals('mcu_dc_current');
+    for(var i=0;i<mcuCurr.length;i++){
+      var d=mcuCurr[i].data,r=valRange(d);
+      var spikes=detectSpikes(d,0.25);
+      if(spikes.length>0){
+        addResult('电流分析','电流异常波动','warning',
+          '<span class="hl">'+mcuCurr[i].full+'</span> 检测到 <span class="warn">'+spikes.length+'次</span> 大幅跳变');
+      }
+    }
+  }
+
+  // 使能相关分析
+  if(matchedActions.analyze_enable_desc){
+    var vcuEn=findSignals('vcu_enable');
+    var mcuEn=findSignals('mcu_enable_fb');
+    if(vcuEn.length&&mcuEn.length){
+      var vd=vcuEn[0].data,md=mcuEn[0].data;
+      // 查找VCU使能时刻，检查MCU响应延迟
+      for(var i=1;i<vd.length;i++){
+        if(vd[i-1].v===0&&vd[i].v===1){
+          // VCU在vd[i].t使能，找MCU何时响应
+          var mcuRespT=null;
+          for(var j=0;j<md.length;j++){
+            if(md[j].t>=vd[i].t&&md[j].v===1){mcuRespT=md[j].t;break}
+          }
+          if(mcuRespT){
+            var delay=mcuRespT-vd[i].t;
+            if(delay>0.5){
+              addResult('使能分析','使能响应延迟','warning',
+                'VCU使能 @ '+fmtTime(vd[i].t)+' → MCU响应 @ '+fmtTime(mcuRespT)+'<br>延迟 <span class="warn">'+(delay*1000).toFixed(0)+'ms</span>');
+            }
+          }else{
+            addResult('使能分析','使能后MCU未响应','error',
+              'VCU使能 @ '+fmtTime(vd[i].t)+'，后续MCU始终未反馈使能');
+          }
+        }
+      }
+    }
+  }
+
+  // 故障相关分析
+  if(matchedActions.analyze_fault_desc){
+    var allFaults=findSignals('fault');
+    for(var i=0;i<allFaults.length;i++){
+      var d=allFaults[i].data;
+      var firstNonZero=null,lastNonZero=null;
+      for(var j=0;j<d.length;j++){
+        if(d[j].v!==0){
+          if(!firstNonZero)firstNonZero={t:d[j].t,v:d[j].v};
+          lastNonZero={t:d[j].t,v:d[j].v};
+        }
+      }
+      if(firstNonZero){
+        addResult('故障分析','故障信号详情','error',
+          '<span class="hl">'+allFaults[i].full+'</span><br>首次故障: <span class="err">'+firstNonZero.v+'</span> @ '+fmtTime(firstNonZero.t)+
+          '<br>最近故障: <span class="err">'+lastNonZero.v+'</span> @ '+fmtTime(lastNonZero.t));
+      }
+    }
+  }
+
+  // 振荡分析
+  if(matchedActions.analyze_oscillation_desc){
+    var allSigs=[];
+    var speedSigs=findSignals('speed');
+    var torqueSigs=findSignals('torque');
+    allSigs=allSigs.concat(speedSigs,torqueSigs);
+    for(var i=0;i<allSigs.length;i++){
+      var d=allSigs[i].data;
+      if(d.length<20)continue;
+      // 计算方向变化次数
+      var dirChanges=0;
+      for(var j=2;j<d.length;j++){
+        var d1=d[j-1].v-d[j-2].v;
+        var d2=d[j].v-d[j-1].v;
+        if(d1*d2<0)dirChanges++;
+      }
+      var rate=dirChanges/d.length;
+      if(rate>0.3){
+        addResult('振荡分析','信号方向频繁切换','warning',
+          '<span class="hl">'+allSigs[i].full+'</span> 方向变化率 <span class="warn">'+(rate*100).toFixed(1)+'%</span> ('+dirChanges+'/'+d.length+'帧)');
+      }
+    }
+  }
+
+  // 延迟分析
+  if(matchedActions.analyze_lag_desc){
+    var vcuTrq=findSignals('vcu_torque');
+    var mcuTrq=findSignals('mcu_torque');
+    if(vcuTrq.length&&mcuTrq.length){
+      var lag=findMaxLag(vcuTrq[0].data,mcuTrq[0].data);
+      addResult('延迟分析','扭矩指令-响应延迟','info',
+        '估算延迟约 <span class="hl">'+(lag*1000).toFixed(0)+'ms</span>');
+    }
+  }
+
+  // 下降分析
+  if(matchedActions.analyze_drop_desc){
+    var targets=[].concat(findSignals('speed'),findSignals('torque'),findSignals('mcu_dc_voltage'));
+    for(var i=0;i<targets.length;i++){
+      var d=targets[i].data;
+      if(d.length<10)continue;
+      // 检测连续下降
+      var maxDrop=0,dropStart=0,dropEnd=0,currentDrop=0,currentStart=0;
+      for(var j=1;j<d.length;j++){
+        if(d[j].v<d[j-1].v){
+          if(currentDrop===0)currentStart=j-1;
+          currentDrop+=d[j-1].v-d[j].v;
+          if(currentDrop>maxDrop){maxDrop=currentDrop;dropStart=currentStart;dropEnd=j}
+        }else{currentDrop=0}
+      }
+      if(maxDrop>0){
+        var pct=(maxDrop/(valRange(d).max-valRange(d).min||1))*100;
+        if(pct>10){
+          addResult('下降分析','连续下降检测','warning',
+            '<span class="hl">'+targets[i].full+'</span><br>最大连续下降 <span class="warn">'+maxDrop.toFixed(1)+'</span> ('+pct.toFixed(1)+'%)<br>时间段: '+fmtTime(d[dropStart].t)+' → '+fmtTime(d[dropEnd].t));
+        }
+      }
+    }
+  }
+
+  // 上升分析
+  if(matchedActions.analyze_rise_desc){
+    var targets=[].concat(findSignals('speed'),findSignals('torque'),findSignals('temperature'));
+    for(var i=0;i<targets.length;i++){
+      var d=targets[i].data;
+      if(d.length<10)continue;
+      var first5=0,last5=0;
+      for(var j=0;j<5;j++){first5+=d[j].v;last5+=d[d.length-1-j].v}
+      first5/=5;last5/=5;
+      var rise=last5-first5;
+      if(rise>0){
+        var totalT=d[d.length-1].t-d[0].t;
+        var rate=totalT>0?rise/totalT:0;
+        addResult('上升分析','信号整体趋势上升','info',
+          '<span class="hl">'+targets[i].full+'</span> 前5帧均值='+first5.toFixed(1)+' → 末5帧均值='+last5.toFixed(1)+' (↑'+rise.toFixed(1)+')');
+      }
+    }
+  }
+
+  // 渲染
+  if(results.length===0){
+    runAiAnalysis();
+    return;
+  }
+  renderAiResults(results,stats,0);
+}
+
+// 估算两个信号序列的最大相关延迟
+function findMaxLag(cmdData,respData){
+  if(!cmdData||!respData||cmdData.length<5||respData.length<5)return 0;
+  // 简化: 找cmd发生较大变化时, resp跟随的时间差
+  var totalCmdRange=valRange(cmdData);
+  var threshold=(totalCmdRange.max-totalCmdRange.min)*0.1;
+  var lagSum=0,lagCnt=0;
+  for(var i=2;i<cmdData.length-2;i++){
+    var jump=Math.abs(cmdData[i].v-cmdData[i-1].v);
+    if(jump>threshold){
+      var t=cmdData[i].t;
+      // 在resp中找到第一个接近cmd[i]值的时间
+      var targetV=cmdData[i].v;
+      for(var j=0;j<respData.length;j++){
+        if(respData[j].t>=t&&Math.abs(respData[j].v-targetV)<threshold*2){
+          lagSum+=(respData[j].t-t);lagCnt++;break;
+        }
+      }
+    }
+  }
+  return lagCnt>0?lagSum/lagCnt:0;
+}
+
+// 智能分析按钮事件
+$('aiDescBtn').addEventListener('click',function(){
+  if(!S.ok)return;
+  var desc=$('aiDescInput').value.trim();
+  if(!desc){runAiAnalysis();return}
+  $('aiResults').innerHTML='<div class="ai-progress">正在分析「'+desc.substring(0,20)+'...」<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  $('aiResults').style.display='';
+  $('aiEmpty').style.display='none';
+  setTimeout(function(){runDescAnalysis(desc)},200);
+});
+
 // AI按钮事件
 $('aiRunBtn').addEventListener('click',function(){
   if(!S.ok)return;
@@ -2970,7 +3377,7 @@ $('aiRunBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v3.6 2026-04-09 09:38");
+console.log("CAN分析工具 v3.7 2026-04-09 09:42 智能描述分析");
 })();
 </script>
 </body>
