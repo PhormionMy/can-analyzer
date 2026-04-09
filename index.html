@@ -181,25 +181,7 @@ body{display:flex;flex-direction:column}
 .proto-table th{background:#15152a;padding:6px 8px;text-align:left;color:#666;font-size:8px;text-transform:uppercase;border-bottom:0.5px solid #2a2a3a}
 .proto-table td{padding:5px 8px;border-bottom:0.5px solid #1a1a2a;color:#999}
 .proto-table tr:active td{background:#1a1a1a}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);align-items:flex-end;justify-content:center}
-.modal-overlay.show{display:flex}
-.modal-sheet{background:#15152a;border-radius:20px 20px 0 0;padding:20px 16px;padding-bottom:calc(20px + var(--safe-bottom));width:100%;max-width:500px;animation:slideUp .3s cubic-bezier(.4,0,.2,1)}
-@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.modal-handle{width:36px;height:4px;background:#444;border-radius:2px;margin:0 auto 16px}
-.modal-title{font-size:18px;font-weight:700;color:#fff;margin-bottom:16px;text-align:center}
-.modal-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.modal-row label{font-size:12px;color:#888;min-width:60px}
-.modal-row select,.modal-row input{flex:1;background:#0a0a14;border:0.5px solid #2a2a3a;color:#ddd;padding:8px 10px;border-radius:8px;font-size:13px;-webkit-appearance:none}
-.modal-row select:focus,.modal-row input:focus{border-color:#00d4ff;outline:none}
-.modal-btns{display:flex;gap:8px;margin-top:16px}
-.modal-btn{flex:1;padding:12px;border-radius:12px;border:none;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
-.modal-btn:active{transform:scale(0.97)}
-.modal-btn.cancel{background:#1a1a2e;color:#888}
-.modal-btn.primary{background:#00d4ff;color:#000}
-.modal-btn.preview{background:#003322;color:#00ff88;border:0.5px solid #00ff8844}
-.modal-preview{margin-top:12px;border-radius:8px;overflow:hidden;display:none}
-.modal-preview canvas{width:100%;display:block}
-#tooltip{position:fixed;background:#111218ee;border:0.5px solid #2a2a3a;border-radius:10px;padding:8px 10px;font-size:10px;z-index:150;display:none;pointer-events:none;max-width:300px;line-height:1.5;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,0.4)}
+#tooltip{position:fixed;background:#111218ee;border:0.5px solid #2a2a3a;border-radius:8px;padding:6px 8px;font-size:10px;z-index:150;display:none;pointer-events:none;max-width:260px;line-height:1.5;box-shadow:0 2px 12px rgba(0,0,0,0.3)}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#444;padding:40px 20px;gap:8px;font-size:13px;text-align:center;flex:1}
 .empty-state .es-icon{font-size:48px;opacity:.3;margin-bottom:8px}
 .chart-container{border-bottom:0.5px solid #1a1a2a}
@@ -212,18 +194,14 @@ body{display:flex;flex-direction:column}
 .legend-item-m .leg-name{color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px}
 .legend-item-m.hidden .leg-name{color:#555;text-decoration:line-through}
 .chart-hint{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,0.7);color:#888;font-size:10px;padding:4px 8px;border-radius:6px;pointer-events:none;z-index:10;transition:opacity .4s;white-space:nowrap}
-.cursor-status{position:absolute;top:8px;left:8px;background:rgba(0,0,0,0.8);color:#00d4ff;font-size:10px;padding:6px 10px;border-radius:6px;pointer-events:none;z-index:10;display:none;border:0.5px solid #00d4ff44}
-.cursor-status.active{display:block}
-.cursor-status .cs-label{color:#888;margin-right:4px}
-.cursor-status .cs-value{color:#fff;font-weight:600}
-.cursor-handle{position:absolute;width:46px;height:46px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:20;display:none;transition:transform .12s ease}
-.cursor-handle.active{display:block}
-.cursor-handle.c1{background:rgba(0,212,255,0.18);border:2px solid #00d4ff;box-shadow:0 0 14px rgba(0,212,255,0.5)}
-.cursor-handle.c2{background:rgba(255,215,0,0.18);border:2px solid #ffd700;box-shadow:0 0 14px rgba(255,215,0,0.5)}
-.cursor-handle.selected{transform:translate(-50%,-50%) scale(1.3);box-shadow:0 0 20px rgba(255,255,255,0.3)}
-.cursor-handle .ch-inner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:inherit}
-.cursor-handle.c1 .ch-inner{background:#00d4ff}
-.cursor-handle.c2 .ch-inner{background:#ffd700}
+.cursor-info-bar{display:flex;flex-wrap:wrap;gap:4px;padding:4px 8px;background:#111218;border-bottom:0.5px solid #2a2a3a;font-size:10px;align-items:center;min-height:0;overflow:hidden;transition:all .2s}
+.cursor-info-bar.hidden{display:none}
+.cursor-info-bar .ci-time{font-weight:600;padding:2px 6px;border-radius:4px;font-size:10px}
+.cursor-info-bar .ci-sig{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:#1a1a2e;font-size:9px;white-space:nowrap}
+.cursor-info-bar .ci-sig .ci-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.cursor-info-bar .ci-sig .ci-name{color:#888;max-width:60px;overflow:hidden;text-overflow:ellipsis}
+.cursor-info-bar .ci-sig .ci-val{color:#fff;font-weight:600}
+.cursor-info-bar .ci-delta{color:#888;font-size:9px;padding:2px 6px}
 /* 隐藏工具栏/芯片组的水平滚动条，保留垂直滚动条 */
 ::-webkit-scrollbar{width:0;height:0}
 .chart-area::-webkit-scrollbar{width:3px}
@@ -293,7 +271,6 @@ body{display:flex;flex-direction:column}
       <button class="ct-btn" id="btnFitY">适Y</button>
       <div class="ct-sep"></div>
       <button class="ct-btn" id="btnClearCur">清光标</button>
-      <button class="ct-btn accent" id="btnExport">📷导出</button>
     </div>
     <div class="axis-bar" id="axBar"></div>
     <div class="chart-area" id="chartCt">
@@ -372,19 +349,6 @@ body{display:flex;flex-direction:column}
   </div>
 </div>
 <div id="tooltip"></div>
-<div class="modal-overlay" id="expModal">
-  <div class="modal-sheet">
-    <div class="modal-handle"></div><div class="modal-title">📷 导出波形图</div>
-    <div class="modal-row"><label>格式</label><select id="ef"><option value="png" selected>PNG</option><option value="jpeg">JPEG</option><option value="svg">SVG</option></select></div>
-    <div class="modal-row"><label>背景</label><select id="ebg"><option value="dark">深色</option><option value="light">浅色</option><option value="transparent">透明</option></select></div>
-    <div class="modal-row"><label>范围</label><select id="esp"><option value="all">所有轴</option><option value="current">当前轴</option></select></div>
-    <div class="modal-row"><label>光标</label><select id="ecur"><option value="1">包含</option><option value="0">仅波形</option></select></div>
-    <div class="modal-row"><label>清晰度</label><select id="eclr"><option value="2">2倍 (推荐)</option><option value="3">3倍 (高清)</option><option value="1">1倍</option></select></div>
-    <div class="modal-row"><label>文件名</label><input type="text" id="en" value="can_waveform"></div>
-    <div class="modal-preview" id="ePrev"><canvas id="eCv"></canvas></div>
-    <div class="modal-btns"><button class="modal-btn cancel" id="btnExpCancel">取消</button><button class="modal-btn preview" id="btnExpPreview">预览</button><button class="modal-btn primary" id="btnExpGo">下载</button></div>
-  </div>
-</div>
 <script>
 var BUILTIN_DBC={
 "2_EV_MOT_DQD_1C_V2.4.dbc":"VERSION \"\"\n\n\nNS_ : \n\tNS_DESC_\n\tCM_\n\tBA_DEF_\n\tBA_\n\tVAL_\n\tCAT_DEF_\n\tCAT_\n\tFILTER\n\tBA_DEF_DEF_\n\tEV_DATA_\n\tENVVAR_DATA_\n\tSGTYPE_\n\tSGTYPE_VAL_\n\tBA_DEF_SGTYPE_\n\tBA_SGTYPE_\n\tSIG_TYPE_REF_\n\tVAL_TABLE_\n\tSIG_GROUP_\n\tSIG_VALTYPE_\n\tSIGTYPE_VALTYPE_\n\tBO_TX_BU_\n\tBA_DEF_REL_\n\tBA_REL_\n\tBA_DEF_DEF_REL_\n\tBU_SG_REL_\n\tBU_EV_REL_\n\tBU_BO_REL_\n\tSG_MUL_VAL_\n\nBS_:\n\nBU_:\nVAL_TABLE_ motor_ctrl_mode_tb 2 \"tq ctrl\" 1 \"spd ctrl\" 0 \"no ctrl\" ;\n\n\nBO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX\n SG_ DTC_Code2 : 0|16@1+ (1,0) [0|0] \"\" Vector__XXX\n\nBO_ 2633880048 SW_VER_ISG: 8 Vector__XXX\n SG_ xuanbianzhi_jingdu : 34|2@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ xuanbianzhi : 20|14@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ MCU_Software_Information : 40|24@1+ (1,0) [0|0] \"\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u06b2\ufffd\ufffd\ufffd\ufffd\ufffd\u6c7e\" Vector__XXX\n SG_ Manufacturer_Information : 16|4@1+ (1,0) [0|0] \"\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u03e2\" Vector__XXX\n SG_ Protocol_Type : 12|4@1+ (1,0) [0|0] \"\u0368\u0476\u042d\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\" Vector__XXX\n SG_ Protocol_Version : 8|4@1+ (0.1,2) [0|0] \"\" Vector__XXX\n\nBO_ 2566869488 IPU_STATUS_2: 8 Vector__XXX\n SG_ Torque_Limit_generate_mode : 44|12@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ Torque_Limit_drive_mode : 32|12@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ Motor_Temperature : 0|8@1+ (1,-40) [0|0] \"\" Vector__XXX\n SG_ IPU_Voltage : 16|16@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ IPU_temperature : 8|8@1+ (1,-40) [0|0] \"\" Vector__XXX\n\nBO_ 2566865392 IPU_STATUS_1: 8 Vector__XXX\n SG_ Work_Mode : 60|4@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ Motor_Torque : 16|16@1+ (1,-3200) [0|0] \"\" Vector__XXX\n SG_ Motor_Speed : 0|16@1+ (1,-30000) [-30000|35535] \"\" Vector__XXX\n SG_ IPU_Current : 32|16@1+ (1,-1000) [0|0] \"\" Vector__XXX\n SG_ Fail_Grade : 56|4@1+ (1,0) [0|0] \"\" Vector__XXX\n\nBO_ 2566881776 IPU_ERROR_CODE: 8 Vector__XXX\n SG_ Severity : 32|4@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ DTC_Counter : 24|8@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ DTC_Code : 8|16@1+ (1,0) [0|0] \"\" Vector__XXX\n\nBO_ 2566861296 HCU_COMMAND_IPU: 8 Vector__XXX\n SG_ hand_brake : 20|2@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ Gear : 16|4@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ brake_pedal : 22|2@1+ (1,0) [0|0] \"\" Vector__XXX\n SG_ Power_limit : 24|8@1+ (1,0) [0|0] \"kW\" Vector__XXX\n SG_ Demand_Torque : 32|16@1+ (1,-3200) [0|0] \"Nm\" Vector__XXX\n SG_ IPU_Enable : 0|1@1+ (1,0) [0|0] \"\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u02b9\ufffd\ufffd\" Vector__XXX\n SG_ Discharge : 7|1@1+ (1,0) [0|0] \"\ufffd\ufffd\ufffd\u0677\u0175\ufffd\u02b9\ufffd\ufffd\" Vector__XXX\n SG_ Demand_Speed : 48|16@1+ (1,-30000) [-30000|35535] \"rpm\" Vector__XXX\n SG_ Control_Mode : 8|2@1+ (1,0) [0|0] \"\" Vector__XXX\n\n\n\nCM_ BO_ 3221225472 \"This is a message for not used signals, created by Vector CANdb++ DBC OLE DB Provider.\";\nBA_DEF_ SG_  \"GenSigSendType\" ENUM  \"Cyclic\",\"OnWrite\",\"OnWriteWithRepetition\",\"OnChange\",\"OnChangeWithRepetition\",\"IfActive\",\"IfActiveWithRepetition\",\"NoSigSendType\";\nBA_DEF_ SG_  \"GenSigInactiveValue\" INT 0 0;\nBA_DEF_ BO_  \"GenMsgCycleTime\" INT 0 0;\nBA_DEF_ BO_  \"GenMsgSendType\" ENUM  \"Cyclic\",\"not_used\",\"not_used\",\"not_used\",\"not_used\",\"Cyclic\",\"not_used\",\"IfActive\",\"NoMsgSendType\";\nBA_DEF_ BU_  \"NmStationAddress\" HEX 0 0;\nBA_DEF_  \"DBName\" STRING ;\nBA_DEF_  \"BusType\" STRING ;\nBA_DEF_DEF_  \"GenSigSendType\" \"Cyclic\";\nBA_DEF_DEF_  \"GenSigInactiveValue\" 0;\nBA_DEF_DEF_  \"GenMsgCycleTime\" 0;\nBA_DEF_DEF_  \"GenMsgSendType\" \"NoMsgSendType\";\nBA_DEF_DEF_  \"NmStationAddress\" 0;\nBA_DEF_DEF_  \"DBName\" \"\";\nBA_DEF_DEF_  \"BusType\" \"CAN\";\nBA_ \"BusType\" \"CAN\";\nBA_ \"DBName\" \"GC_Motor_20120112\";\nBA_ \"GenSigInactiveValue\" SG_ 2566861296 Demand_Torque 800;\nBA_ \"GenSigInactiveValue\" SG_ 2566861296 Demand_Speed 6000;\nVAL_ 2566861296 Control_Mode 2 \"tq ctrl\" 1 \"spd ctrl\" 0 \"no ctrl\" ;\n\n", 
@@ -714,9 +678,8 @@ function switchPage(page){
   if(page!=='chart'){
     $('tooltip').style.display='none';
     for(var i=0;i<C.subs.length;i++){
-      C.subs[i].cursorStatus.classList.remove('active');
-      C.subs[i].cursorHandle1.style.display='none';
-      C.subs[i].cursorHandle2.style.display='none';
+      C.subs[i].cursorInfoBar.classList.add('hidden');
+      C.subs[i].cursorInfoBar.innerHTML='';
     }
   }
 
@@ -1583,22 +1546,10 @@ function mChart(ax,sigs,yMn,yMx){
   hint.innerHTML='双指缩放 · 单指平移 · 点击放光标';
   svgContainer.appendChild(hint);
 
-  // 光标状态指示器
-  var cursorStatus=document.createElement('div');
-  cursorStatus.className='cursor-status';
-  svgContainer.appendChild(cursorStatus);
-
-  // 光标手柄 - 光标1
-  var cursorHandle1=document.createElement('div');
-  cursorHandle1.className='cursor-handle c1';
-  cursorHandle1.innerHTML='<div class="ch-inner"></div>';
-  svgContainer.appendChild(cursorHandle1);
-
-  // 光标手柄 - 光标2
-  var cursorHandle2=document.createElement('div');
-  cursorHandle2.className='cursor-handle c2';
-  cursorHandle2.innerHTML='<div class="ch-inner"></div>';
-  svgContainer.appendChild(cursorHandle2);
+  // 光标信息栏（替换原来的cursor-status + cursor-handle，显示在图例下方）
+  var cursorInfoBar=document.createElement('div');
+  cursorInfoBar.className='cursor-info-bar hidden';
+  wrap.insertBefore(cursorInfoBar,svgContainer);
 
   var sub={
     el:wrap,svg:svg,svgContainer:svgContainer,legendWrap:legendWrap,
@@ -1606,8 +1557,7 @@ function mChart(ax,sigs,yMn,yMx){
     sigs:sigs,yMn:yMn,yMx:yMx,
     mg:mg,W:W,H:H,pw:pw,ph:ph,
     gg:gg,paths:paths,ag:ag,cg:cg,pH:pH,
-    hint:hint,cursorStatus:cursorStatus,
-    cursorHandle1:cursorHandle1,cursorHandle2:cursorHandle2
+    hint:hint,cursorInfoBar:cursorInfoBar
   };
 
   // Resize observer
@@ -1725,8 +1675,8 @@ function mChart(ax,sigs,yMn,yMx){
           C.selectedCursor=nearCursor;
           C.touchState.mode='cursor';
           C.curDrag=nearCursor;
-          updateCursorHandles(sub);
-          updateCursorStatus(sub);
+          updateCursorInfo(sub);
+          
           return;
         }
       }
@@ -1779,7 +1729,7 @@ function mChart(ax,sigs,yMn,yMx){
         if(C.curDrag==='c1')C.c1=t;
         else if(C.curDrag==='c2')C.c2=t;
         C._moved=true;
-        updateCursorHandles(sub);
+        updateCursorInfo(sub);
         uCur();
       } else if(C.touchState.mode==='pending'){
         // 等待方向判断
@@ -1864,7 +1814,7 @@ function mChart(ax,sigs,yMn,yMx){
                 if(!C.selectedCursor||C.selectedCursor==='c2'){C.c1=t;C.selectedCursor='c1'}
                 else{C.c2=t;C.selectedCursor='c2'}
               }
-              updateCursorHandles(sub);updateCursorStatus(sub);uCur();
+              updateCursorInfo(sub);uCur();
             }
           }
         }
@@ -1903,15 +1853,15 @@ function mChart(ax,sigs,yMn,yMx){
         else{C.c2=ct;C.selectedCursor='c2'}
       }
     }
-    updateCursorHandles(sub);
-    updateCursorStatus(sub);
+    updateCursorInfo(sub);
+    
     uCur();
   });
   
   pH.addEventListener('contextmenu',function(e){
     e.preventDefault();
     C.c1=null;C.c2=null;C.hov=null;C.selectedCursor=null;
-    updateCursorHandles(sub);updateCursorStatus(sub);uCur();
+    updateCursorInfo(sub);uCur();
   });
 
   // 双击 → 适应全部
@@ -1931,69 +1881,54 @@ function mChart(ax,sigs,yMn,yMx){
   return sub;
 }
 
-// 更新光标手柄位置
-function updateCursorHandles(sub){
-  var mg=sub.mg,pw=sub.pw,ph=sub.ph;
+// 更新光标信息栏（显示在图例下方）
+function updateCursorInfo(sub){
+  var bar=sub.cursorInfoBar;
+  if(currentPage!=='chart'||C.cm===0){bar.classList.add('hidden');bar.innerHTML='';return}
 
-  // 非波形页面直接隐藏所有手柄
-  if(currentPage!=='chart'){
-    sub.cursorHandle1.style.display='none';
-    sub.cursorHandle2.style.display='none';
-    return;
-  }
+  var hasCursor=(C.c1!==null)||(C.cm===2&&C.c2!==null);
+  if(!hasCursor){bar.classList.add('hidden');bar.innerHTML='';return}
 
-  // 光标1手柄
-  if(C.cm!==0&&C.c1!==null){
-    var x1=txOf(sub,C.c1);
-    if(x1>=mg.l-10&&x1<=mg.l+pw+10){
-      sub.cursorHandle1.style.display='block';
-      sub.cursorHandle1.style.left=x1+'px';
-      sub.cursorHandle1.style.top=(mg.t+ph/2)+'px';
-      if(C.selectedCursor==='c1'){
-        sub.cursorHandle1.classList.add('selected');
-      } else {
-        sub.cursorHandle1.classList.remove('selected');
-      }
-    } else {
-      sub.cursorHandle1.style.display='none';
-    }
-  } else {
-    sub.cursorHandle1.style.display='none';
+  bar.classList.remove('hidden');
+  var h='';
+
+  // 光标1时间
+  if(C.c1!==null){
+    h+='<span class="ci-time" style="color:#00d4ff;background:#00d4ff18">T1 '+C.c1.toFixed(4)+'s</span>';
   }
-  
-  // 光标2手柄
+  // 光标2时间
   if(C.cm===2&&C.c2!==null){
-    var x2=txOf(sub,C.c2);
-    if(x2>=mg.l-10&&x2<=mg.l+pw+10){
-      sub.cursorHandle2.style.display='block';
-      sub.cursorHandle2.style.left=x2+'px';
-      sub.cursorHandle2.style.top=(mg.t+ph/2)+'px';
-      if(C.selectedCursor==='c2'){
-        sub.cursorHandle2.classList.add('selected');
-      } else {
-        sub.cursorHandle2.classList.remove('selected');
-      }
-    } else {
-      sub.cursorHandle2.style.display='none';
-    }
-  } else {
-    sub.cursorHandle2.style.display='none';
+    h+='<span class="ci-time" style="color:#ffd700;background:#ffd70018">T2 '+C.c2.toFixed(4)+'s</span>';
   }
-}
+  // 双光标差值
+  if(C.cm===2&&C.c1!==null&&C.c2!==null){
+    var dt=Math.abs(C.c2-C.c1),fr=dt>0?(1/dt):0;
+    h+='<span class="ci-delta">ΔT='+dt.toFixed(4)+'s'+(fr<10000?' '+fr.toFixed(1)+'Hz':'')+'</span>';
+  }
 
-// 更新光标状态显示
-function updateCursorStatus(sub){
-  if(currentPage!=='chart'||C.cm===0||!C.selectedCursor){
-    sub.cursorStatus.classList.remove('active');
-    return;
+  // 信号值
+  var t=C.c1!==null?C.c1:(C.c2!==null?C.c2:null);
+  if(t!==null){
+    for(var i=0;i<sub.sigs.length;i++){
+      if(!sub.sigs[i].visible)continue;
+      var pt=fP(sub.sigs[i].data,t);
+      if(!pt)continue;
+      h+='<span class="ci-sig"><span class="ci-dot" style="background:'+sub.sigs[i].color+'"></span><span class="ci-name">'+sub.sigs[i].short+'</span><span class="ci-val" style="color:'+sub.sigs[i].color+'">'+pt.v.toFixed(2)+'</span></span>';
+    }
   }
-  
-  sub.cursorStatus.classList.add('active');
-  var label=C.selectedCursor==='c1'?'T1':'T2';
-  var value=C.selectedCursor==='c1'?C.c1:C.c2;
-  var color=C.selectedCursor==='c1'?'#00d4ff':'#ffd700';
-  
-  sub.cursorStatus.innerHTML='<span class="cs-label">'+label+'</span><span class="cs-value" style="color:'+color+'">'+(value!==null?value.toFixed(4)+'s':'--')+'</span>';
+
+  // 双光标差值信号
+  if(C.cm===2&&C.c1!==null&&C.c2!==null){
+    for(var i=0;i<sub.sigs.length;i++){
+      if(!sub.sigs[i].visible)continue;
+      var p1=fP(sub.sigs[i].data,C.c1),p2=fP(sub.sigs[i].data,C.c2);
+      if(!p1&&!p2)continue;
+      var dv=(p2?p2.v:0)-(p1?p1.v:0);
+      h+='<span class="ci-sig"><span class="ci-dot" style="background:'+sub.sigs[i].color+'"></span><span class="ci-name">'+sub.sigs[i].short+'</span><span class="ci-val" style="color:'+(dv>=0?'#00ff88':'#ff6b9d')+'">'+(dv>=0?'+':'')+dv.toFixed(2)+'</span></span>';
+    }
+  }
+
+  bar.innerHTML=h;
 }
 
 function chartPointerDown(cx,cy,sub){
@@ -2013,8 +1948,8 @@ function chartPointerDown(cx,cy,sub){
       } else {
         // 选中该光标
         C.selectedCursor=nearCursor;
-        updateCursorHandles(sub);
-        updateCursorStatus(sub);
+        updateCursorInfo(sub);
+        
         // 等待下次点击再拖动
       }
     }
@@ -2057,8 +1992,8 @@ function dragCur(cx){
       var t=timeAtX(sub,mx);
       if(C.curDrag==='c1')C.c1=t;
       else if(C.curDrag==='c2')C.c2=t;
-      updateCursorHandles(sub);
-      updateCursorStatus(sub);
+      updateCursorInfo(sub);
+      
       break;
     }
   }
@@ -2171,8 +2106,8 @@ function dChart(sub){
   sub.ag.innerHTML=ah;
   dLegend(sub);
   dCC(sub);
-  updateCursorHandles(sub);
-  updateCursorStatus(sub);
+  updateCursorInfo(sub);
+  
 }
 
 function dLegend(sub){
@@ -2277,7 +2212,7 @@ function dCC(sub){
   cg.innerHTML=h;
 }
 
-function rAll(){for(var i=0;i<C.subs.length;i++){dChart(C.subs[i]);updateCursorHandles(C.subs[i]);updateCursorStatus(C.subs[i])}}
+function rAll(){for(var i=0;i<C.subs.length;i++){dChart(C.subs[i]);updateCursorInfo(C.subs[i])}}
 
 function uCur(){
   var el=$('tooltip');
@@ -2381,8 +2316,8 @@ $('btnFitY').addEventListener('click',function(){fitY()});
 $('btnClearCur').addEventListener('click',function(){
   C.c1=null;C.c2=null;C.hov=null;C.curDrag=null;C.selectedCursor=null;
   for(var i=0;i<C.subs.length;i++){
-    updateCursorHandles(C.subs[i]);
-    updateCursorStatus(C.subs[i]);
+    updateCursorInfo(C.subs[i]);
+    
   }
   uCur();
 });
@@ -2395,138 +2330,10 @@ function setCur(m){
   $('cs').classList.toggle('active',m===1);
   $('cd').classList.toggle('active',m===2);
   for(var i=0;i<C.subs.length;i++){
-    updateCursorHandles(C.subs[i]);
-    updateCursorStatus(C.subs[i]);
+    updateCursorInfo(C.subs[i]);
+    
   }
   uCur();
-}
-
-// ====== Export ======
-$('btnExport').addEventListener('click',function(){if(!C.subs.length)return;$('expModal').classList.add('show');$('ePrev').style.display='none'});
-$('btnExpCancel').addEventListener('click',function(){$('expModal').classList.remove('show')});
-$('expModal').addEventListener('click',function(e){if(e.target===$('expModal'))$('expModal').classList.remove('show')});
-$('btnExpPreview').addEventListener('click',function(){doExp(true)});
-$('btnExpGo').addEventListener('click',function(){doExp(false)});
-
-function getCursorLines(sub){
-  var lines=[];
-  function gva(t){
-    var v=[];
-    for(var i=0;i<sub.sigs.length;i++){
-      if(!sub.sigs[i].visible)continue;
-      var pt=fP(sub.sigs[i].data,t);
-      if(pt)v.push({name:sub.sigs[i].short,val:pt.v,unit:sub.sigs[i].unit,color:sub.sigs[i].color});
-    }
-    return v;
-  }
-  if(C.cm===1&&C.c1!==null){
-    lines.push({type:'title',text:'T='+C.c1.toFixed(4)+'s',color:'#ffd700'});
-    var v=gva(C.c1);
-    for(var i=0;i<v.length;i++)lines.push({type:'val',name:v[i].name,val:v[i].val.toFixed(3),unit:v[i].unit,color:v[i].color});
-  }else if(C.cm===2){
-    if(C.c1!==null)lines.push({type:'title',text:'T1='+C.c1.toFixed(4)+'s',color:'#00d4ff'});
-    if(C.c2!==null)lines.push({type:'title',text:'T2='+C.c2.toFixed(4)+'s',color:'#ffd700'});
-    if(C.c1!==null&&C.c2!==null){
-      var dt=Math.abs(C.c2-C.c1),fr=dt>0?(1/dt):0;
-      lines.push({type:'title',text:'ΔT='+dt.toFixed(4)+'s'+(fr<10000?' ('+fr.toFixed(1)+'Hz)':''),color:'#888'});
-    }
-  }
-  return lines;
-}
-
-function doExp(pv){
-  var fmt=$('ef').value,bg=$('ebg').value,sp=$('esp').value;
-  var fn=$('en').value||'can_waveform',incCur=$('ecur').value==='1',clr=parseInt($('eclr').value)||2;
-  var subs=C.subs;
-  if(sp==='current'&&C.subs.length>1){
-    subs=[];
-    for(var i=0;i<C.subs.length;i++){if(C.subs[i].aid===C.sa)subs.push(C.subs[i])}
-    if(!subs.length)subs=[C.subs[0]];
-  }
-  if(!subs.length)return;
-  if(fmt==='svg'){if(pv){$('ePrev').style.display='none';return}eSVG(subs,bg,fn,incCur);$('expModal').classList.remove('show');return}
-  var cls=[];
-  if(incCur)for(var i=0;i<subs.length;i++)cls.push(getCursorLines(subs[i]));
-  var hH=30,gH=2,legH=24,tH=hH;
-  for(var i=0;i<subs.length;i++)tH+=legH+subs[i].H+gH+(cls[i]?cls[i].length*12+12:0);
-  tH+=12;
-  var W=subs[0].W,cv=document.createElement('canvas');
-  cv.width=W*clr;cv.height=tH*clr;
-  var ctx=cv.getContext('2d');ctx.scale(clr,clr);
-  if(bg==='dark'){ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,W,tH)}
-  else if(bg==='light'){ctx.fillStyle='#f5f5f0';ctx.fillRect(0,0,W,tH)}
-  else ctx.clearRect(0,0,W,tH);
-  ctx.fillStyle=bg==='light'?'#222':'#888';
-  ctx.font='bold 10px -apple-system,sans-serif';
-  ctx.fillText('CAN Waveform',8,16);
-  ctx.strokeStyle=bg==='light'?'#ccc':'#333';
-  ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(0,hH-2);ctx.lineTo(W,hH-2);ctx.stroke();
-  var yO=hH,ld=0,total=subs.length;
-  for(var i=0;i<subs.length;i++){
-    (function(idx){
-      var sub=subs[idx];
-      var ts=sub.svg.cloneNode(true);
-      var rects=ts.querySelectorAll('rect[fill="transparent"]');
-      for(var r=0;r<rects.length;r++)rects[r].remove();
-      var sd=new XMLSerializer().serializeToString(ts);
-      if(!sd.match(/^<svg[^>]+xmlns/))sd=sd.replace(/^<svg/,'<svg xmlns="http://www.w3.org/2000/svg"');
-      sd=sd.replace(/&nbsp;/g,'&#160;');
-      var sb=new Blob([sd],{type:'image/svg+xml;charset=utf-8'}),u=URL.createObjectURL(sb),img=new Image();
-      var curY=yO;
-      img.onload=function(){
-        ctx.drawImage(this,0,curY,W,sub.H);
-        URL.revokeObjectURL(u);
-        ld++;
-        if(ld===total){
-          if(pv){
-            $('ePrev').style.display='';
-            var pc=$('eCv'),pw2=$('ePrev').clientWidth||300,ph2=Math.round(pw2*tH/W);
-            pc.width=pw2*2;pc.height=ph2*2;pc.style.width=pw2+'px';pc.style.height=ph2+'px';
-            var pctx=pc.getContext('2d');pctx.scale(2,2);pctx.drawImage(cv,0,0,pw2,ph2);
-          }else{
-            dCv(cv,fn,fmt);$('expModal').classList.remove('show');
-          }
-        }
-      };
-      img.src=u;
-    })(i);
-    yO+=legH+subs[i].H+gH+(cls[i]?cls[i].length*12+12:0);
-  }
-}
-
-function eSVG(subs,bg,fn,incCur){
-  var cls=[];
-  if(incCur)for(var i=0;i<subs.length;i++)cls.push(getCursorLines(subs[i]));
-  var hH=30,gH=2,legH=24,tH=hH;
-  for(var i=0;i<subs.length;i++)tH+=legH+subs[i].H+gH+(cls[i]?cls[i].length*12+12:0);
-  tH+=12;
-  var W=subs[0].W,os=document.createElementNS(NS,'svg');
-  os.setAttribute('width',W);os.setAttribute('height',tH);
-  os.setAttribute('viewBox','0 0 '+W+' '+tH);os.setAttribute('xmlns',NS);
-  var bg2=document.createElementNS(NS,'rect');
-  bg2.setAttribute('width',W);bg2.setAttribute('height',tH);
-  bg2.setAttribute('fill',bg==='light'?'#f5f5f0':bg==='transparent'?'none':'#0a0a0a');
-  os.appendChild(bg2);
-  var yO=hH;
-  for(var i=0;i<subs.length;i++){
-    var sub=subs[i],g=document.createElementNS(NS,'g');
-    g.setAttribute('transform','translate(0,'+yO+')');
-    var ts2=sub.svg.cloneNode(true);
-    var rects=ts2.querySelectorAll('rect[fill="transparent"]');
-    for(var r=0;r<rects.length;r++)rects[r].remove();
-    while(ts2.firstChild)g.appendChild(ts2.firstChild);
-    os.appendChild(g);yO+=sub.H+gH;
-  }
-  var ss=new XMLSerializer().serializeToString(os);
-  ss=ss.replace(/&nbsp;/g,'&#160;');
-  var b=new Blob([ss],{type:'image/svg+xml'}),a=document.createElement('a');
-  a.href=URL.createObjectURL(b);a.download=fn+'.svg';a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function dCv(cv,fn,fmt){
-  var mt=fmt==='jpeg'?'image/jpeg':'image/png',ex=fmt==='jpeg'?'.jpg':'.png';
-  cv.toBlob(function(b){var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn+ex;a.click();URL.revokeObjectURL(a.href)},mt,1.0);
 }
 
 // ====== Protocol ======
