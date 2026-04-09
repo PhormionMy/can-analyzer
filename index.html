@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.0 2026-04-09 10:46</title>
+<title>CAN分析工具 v4.1 2026-04-09 11:26</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.0 04-09 10:46</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.1 04-09 11:26</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -770,7 +770,7 @@ function switchPage(page){
 
   if(page==='chart'){rAxBar();rSigPanel();sch()}
   if(page==='proto')rProto();
-  if(page==='ai'){if(S.ok){$('aiRunBtn').disabled=false;$('aiDescBtn').disabled=false}}
+  if(page==='ai'){if(S.ok){$('aiRunBtn').disabled=false;$('aiDescBtn').disabled=false;$('aiWaveBtn').disabled=false}}
 }
 
 // ====== Drawer ======
@@ -1415,7 +1415,6 @@ function rSigPanel(){
         C.ss[sig]=targetAx;
         if(C.yr&&C.yr[targetAx]!==undefined)delete C.yr[targetAx];
       }
-      if(!isValidTR()){C.t0=null;C.t1=null}
       updateChart();
     });
   });
@@ -1452,7 +1451,6 @@ function rSigPanel(){
           }
         }
       }
-      if(!isValidTR()){C.t0=null;C.t1=null}
       updateChart();
     });
     sel.addEventListener('click',function(e){e.stopPropagation()});
@@ -1490,6 +1488,9 @@ function rChart(){
   var ct=$('chartCt');
   if(!C.yr||typeof C.yr!=='object')C.yr={};
 
+  // 保护缩放状态：重建前保存，重建后恢复
+  var _savedT0=C.t0,_savedT1=C.t1,_savedYr=JSON.parse(JSON.stringify(C.yr||{}));
+
   cleanOrphanSignals();
 
   var ag={};
@@ -1515,10 +1516,15 @@ function rChart(){
     }else{
       ct.innerHTML='<div class="empty-state"><div class="es-icon">📊</div><div>暂无波形数据</div><div style="font-size:11px;color:#555">请在左侧菜单「信号量」中点击信号添加到波形图</div></div>';
     }
+    // 没有数据时也恢复缩放状态
+    C.t0=_savedT0;C.t1=_savedT1;C.yr=_savedYr;
     rAxBar();return;
   }
 
-  if(!isValidTR()){
+  // 恢复保存的缩放状态（如果之前有有效的缩放）
+  if(_savedT0!==null&&_savedT1!==null&&typeof _savedT0==='number'&&typeof _savedT1==='number'&&isFinite(_savedT0)&&isFinite(_savedT1)&&_savedT1>_savedT0){
+    C.t0=_savedT0;C.t1=_savedT1;
+  }else if(!isValidTR()){
     if(!computeTimeRange(aT)){
       ct.innerHTML='<div class="empty-state"><div class="es-icon">📊</div><div>无法计算时间范围</div></div>';
       rAxBar();return;
@@ -1532,6 +1538,8 @@ function rChart(){
     if(C.t0>dMn-pad)C.t0=dMn-pad;
     if(C.t1<dMx+pad)C.t1=dMx+pad;
   }
+  // 恢复Y轴缩放
+  for(var k in _savedYr){if(!C.yr[k])C.yr[k]=_savedYr[k]}
 
   var chartCount=0;
   for(var a=0;a<C.ax.length;a++){
@@ -3765,7 +3773,7 @@ $('aiWaveBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v4.0 2026-04-09 10:46 波形时间段分析");
+console.log("CAN分析工具 v4.1 2026-04-09 11:26 缩放状态保护 + 波形时间段分析");
 })();
 </script>
 </body>
