@@ -213,6 +213,55 @@ body{display:flex;flex-direction:column}
 .scale-in{animation:scaleIn .25s ease}
 .pulse{animation:pulse 1.5s ease-in-out infinite}
 
+/* AI诊断页面 */
+.ai-page{flex:1;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch}
+.ai-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.ai-title{font-size:16px;font-weight:700;color:#fff}
+.ai-run-btn{padding:8px 18px;border-radius:10px;border:none;background:linear-gradient(135deg,#00d4ff,#0088cc);color:#000;font-size:13px;font-weight:700;cursor:pointer;min-height:36px;-webkit-appearance:none}
+.ai-run-btn:active{transform:scale(0.96)}
+.ai-run-btn:disabled{opacity:.3;cursor:not-allowed;background:#333;color:#666}
+.ai-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#444;padding:40px 20px;gap:8px;font-size:13px;text-align:center}
+.ai-summary{background:#111218;border-radius:14px;padding:14px;margin-bottom:12px;border:0.5px solid #2a2a3a}
+.ai-summary-hdr{font-size:13px;font-weight:700;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.ai-score{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700}
+.ai-score.good{background:#00ff8820;color:#00ff88;border:0.5px solid #00ff8844}
+.ai-score.warn{background:#ffd70020;color:#ffd700;border:0.5px solid #ffd70044}
+.ai-score.bad{background:#ff6b9d20;color:#ff6b9d;border:0.5px solid #ff6b9d44}
+.ai-stat-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.ai-stat{display:flex;align-items:center;gap:4px;font-size:11px;color:#888}
+.ai-stat b{color:#ddd}
+.ai-section{background:#111218;border-radius:12px;margin-bottom:10px;overflow:hidden;border:0.5px solid #2a2a3a}
+.ai-section-hdr{display:flex;align-items:center;gap:6px;padding:10px 12px;background:#15152a;border-bottom:0.5px solid #2a2a3a;cursor:pointer}
+.ai-section-hdr:active{background:#1a1a2e}
+.ai-section-hdr .ai-cat-icon{font-size:14px}
+.ai-section-hdr .ai-cat-name{font-size:13px;font-weight:600;color:#fff;flex:1}
+.ai-section-hdr .ai-cat-badge{font-size:10px;padding:2px 8px;border-radius:6px;font-weight:700}
+.ai-section-hdr .ai-cat-badge.ok{background:#00ff8820;color:#00ff88}
+.ai-section-hdr .ai-cat-badge.warning{background:#ffd70020;color:#ffd700}
+.ai-section-hdr .ai-cat-badge.error{background:#ff6b9d20;color:#ff6b9d}
+.ai-section-hdr .ai-cat-badge.info{background:#00d4ff20;color:#00d4ff}
+.ai-section-hdr .ai-arrow{color:#555;font-size:10px;transition:transform .15s}
+.ai-section-hdr .ai-arrow.open{transform:rotate(90deg)}
+.ai-section-body{padding:8px 12px}
+.ai-item{padding:8px 0;border-bottom:0.5px solid #1a1a2a}
+.ai-item:last-child{border-bottom:none}
+.ai-item-hdr{display:flex;align-items:center;gap:4px;margin-bottom:3px}
+.ai-item-sev{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ai-item-sev.ok{background:#00ff88}
+.ai-item-sev.warning{background:#ffd700}
+.ai-item-sev.error{background:#ff6b9d}
+.ai-item-sev.info{background:#00d4ff}
+.ai-item-title{font-size:12px;color:#ddd;font-weight:500}
+.ai-item-detail{font-size:11px;color:#888;padding-left:12px;line-height:1.6}
+.ai-item-detail .hl{color:#00d4ff;font-weight:600}
+.ai-item-detail .warn{color:#ffd700}
+.ai-item-detail .err{color:#ff6b9d}
+.ai-item-detail .ok{color:#00ff88}
+.ai-progress{text-align:center;padding:20px;color:#888;font-size:12px}
+.ai-progress .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#00d4ff;margin:0 2px;animation:pulse 1s ease-in-out infinite}
+.ai-progress .dot:nth-child(2){animation-delay:.2s}
+.ai-progress .dot:nth-child(3){animation-delay:.4s}
+
 /* 移动端优化 */
 @media(max-width:380px){
   .ct-btn{padding:5px 8px;font-size:11px;min-height:30px}
@@ -331,12 +380,23 @@ body{display:flex;flex-direction:column}
   <div class="page" id="page-proto">
     <div class="proto-page" id="protoContent"><div class="empty-state"><div class="es-icon">📖</div><div>暂无协议定义</div><div style="font-size:11px;color:#555">请先上传DBC文件并解析</div></div></div>
   </div>
+  <div class="page" id="page-ai">
+    <div class="ai-page" id="aiContent">
+      <div class="ai-header">
+        <div class="ai-title">🔬 智能诊断分析</div>
+        <button class="ai-run-btn" id="aiRunBtn" disabled>▶ 开始诊断</button>
+      </div>
+      <div class="ai-empty" id="aiEmpty"><div class="es-icon">🔬</div><div>请先上传并解析数据</div><div style="font-size:11px;color:#555">解析后点击「开始诊断」自动分析各控制器指令-响应关系</div></div>
+      <div id="aiResults" style="display:none"></div>
+    </div>
+  </div>
 </div>
 <div class="bottom-nav">
   <div class="nav-item active" data-page="chart"><span class="nav-icon">📈</span><span class="nav-label">波形</span></div>
   <div class="nav-item" data-page="raw"><span class="nav-icon">📋</span><span class="nav-label">数据</span><span class="nav-badge" id="rawBadge">0</span></div>
   <div class="nav-item" data-page="upload"><span class="nav-icon">📂</span><span class="nav-label">文件</span></div>
   <div class="nav-item" data-page="proto"><span class="nav-icon">📖</span><span class="nav-label">协议</span></div>
+  <div class="nav-item" data-page="ai"><span class="nav-icon">🔬</span><span class="nav-label">诊断</span></div>
 </div>
 <div class="drawer-overlay" id="drawerOverlay"></div>
 <div class="drawer" id="drawer">
@@ -685,6 +745,7 @@ function switchPage(page){
 
   if(page==='chart'){rAxBar();rSigPanel();sch()}
   if(page==='proto')rProto();
+  if(page==='ai'){if(S.ok)$('aiRunBtn').disabled=false}
 }
 
 // ====== Drawer ======
@@ -1033,6 +1094,7 @@ $('goBtn').addEventListener('click',async function(){
     bFull();dSigs();bIdF();
     S.ok=true;
     uSt();rChSel();rIdList();rSigPanel();rProto();
+    $('aiRunBtn').disabled=false;
     switchPage('chart');
     $('dtSig').click();
     $('drawer').classList.add('show');$('drawerOverlay').classList.add('show');
@@ -2366,7 +2428,521 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v3.4 已加载 - 优化光标选中移动交互');
+// ====== AI 智能诊断引擎 ======
+
+// 信号名称模式匹配 - 识别不同控制器的关键信号
+var SIG_PATTERNS={
+  // VCU 指令信号
+  vcu_enable:  {keywords:['vcu','enable','mcu_en','mcuenb'],exclude:[]},
+  vcu_mode:    {keywords:['ctrl','mode','ctlmd','control_mode','work_mode'],prefix:'vcu'},
+  vcu_torque:  {keywords:['dmdtrq','demand_torque','torquecmd','trqcmd','dmd_trq'],prefix:'vcu'},
+  vcu_speed:   {keywords:['dmdspd','demand_speed','spdcmd','spd_cmd','dmd_spd'],prefix:'vcu'},
+  vcu_discharge:{keywords:['discharge','dischg'],prefix:'vcu'},
+  vcu_gear:    {keywords:['gear','gr','tmtgr'],prefix:'vcu'},
+  vcu_fault_reset:{keywords:['fault_reset','fltrst','rst'],prefix:'vcu'},
+  // MCU 状态信号
+  mcu_enable_fb:{keywords:['enable','igbt','enbfbk','mcu_enable'],prefix:'mcu',suffix:['fb','feedback','sts','status']},
+  mcu_mode_fb: {keywords:['ctlmd','mode','work_mode','ctrl_mode'],prefix:'mcu'},
+  mcu_speed:   {keywords:['spd','speed','n_','spdout','output_speed','motor_speed','mtrspd'],prefix:'mcu'},
+  mcu_torque:  {keywords:['trq','torque','torqueout','output_torque','mtrtrq'],prefix:'mcu'},
+  mcu_dc_voltage:{keywords:['dcvolt','dc_voltage','voltage','iptvtg','remainpower'],prefix:'mcu'},
+  mcu_dc_current:{keywords:['dccrt','dc_current','current','iptcrt'],prefix:'mcu'},
+  mcu_ac_current:{keywords:['accrt','ac_current'],prefix:'mcu'},
+  mcu_motor_temp:{keywords:['mot_temp','motor_temp','mtrtpt','mtr_temp'],prefix:'mcu'},
+  mcu_ctrl_temp: {keywords:['ctrl_temp','mcu_temp','ctrltemperature','igbt_temp','fntpt'],prefix:'mcu'},
+  mcu_fault_grade:{keywords:['fault_grade','fail_grade','faultlevel','fltgrade'],prefix:'mcu'},
+  mcu_fault_code:{keywords:['fault_code','error_code','dtc_code','dtc','fltcode'],prefix:'mcu'},
+  // 通用温度
+  temperature: {keywords:['temp','tpt','temperature']},
+  // 通用故障
+  fault:       {keywords:['fault','error','dtc','flt','err','alarm']},
+  // 通用使能
+  enable:      {keywords:['enable','en','enb','ready','rdy']},
+  // 通用速度
+  speed:       {keywords:['spd','speed','n_','rpm']},
+  // 通用扭矩
+  torque:      {keywords:['trq','torque','tq']},
+  // 母线
+  dc_link:     {keywords:['dc','hv','hghvtg','pack','bus']}
+};
+
+// 从信号全名中提取控制器前缀
+function getCtrlPrefix(fullName){
+  var parts=fullName.split('.');
+  var msgName=parts[0]||'';
+  var prefix=msgName.replace(/[_\-\d]+$/,'').toLowerCase();
+  // 归一化
+  if(prefix.indexOf('vcu')>=0)return 'VCU';
+  if(prefix.indexOf('mcu')>=0||prefix.indexOf('motor')>=0)return 'MCU';
+  if(prefix.indexOf('hcu')>=0||prefix.indexOf('tcu')>=0)return 'HCU/TCU';
+  if(prefix.indexOf('bms')>=0)return 'BMS';
+  if(prefix.indexOf('ipu')>=0)return 'IPU';
+  return msgName.substring(0,6).toUpperCase();
+}
+
+// 模糊匹配信号
+function matchSignal(fullName,pattern){
+  var lower=fullName.toLowerCase();
+  var sigName=lower.split('.').pop();
+  var msgName=lower.split('.')[0]||'';
+  var matched=false;
+  for(var i=0;i<pattern.keywords.length;i++){
+    if(sigName.indexOf(pattern.keywords[i])>=0){matched=true;break}
+  }
+  if(!matched)return false;
+  if(pattern.prefix){
+    var pf=Array.isArray(pattern.prefix)?pattern.prefix:[pattern.prefix];
+    var hasPrefix=false;
+    for(var p=0;p<pf.length;p++){
+      if(lower.indexOf(pf[p])>=0){hasPrefix=true;break}
+    }
+    if(!hasPrefix)return false;
+  }
+  if(pattern.exclude){
+    for(var e=0;e<pattern.exclude.length;e++){
+      if(lower.indexOf(pattern.exclude[e])>=0)return false;
+    }
+  }
+  return true;
+}
+
+// 查找匹配的信号
+function findSignals(patternKey){
+  var pattern=SIG_PATTERNS[patternKey];
+  if(!pattern)return [];
+  var results=[];
+  for(var k in S.dec){
+    if(S.dec[k]&&S.dec[k].length>0&&matchSignal(k,pattern)){
+      results.push({full:k,data:S.dec[k]});
+    }
+  }
+  return results;
+}
+
+// 获取信号最后一个值
+function lastVal(sigData){
+  if(!sigData||!sigData.length)return null;
+  return sigData[sigData.length-1].v;
+}
+
+// 获取信号第一个值
+function firstVal(sigData){
+  if(!sigData||!sigData.length)return null;
+  return sigData[0].v;
+}
+
+// 获取信号值变化次数
+function changeCount(sigData){
+  if(!sigData||sigData.length<2)return 0;
+  var cnt=0,last=sigData[0].v;
+  for(var i=1;i<sigData.length;i++){
+    if(sigData[i].v!==last){cnt++;last=sigData[i].v}
+  }
+  return cnt;
+}
+
+// 获取信号值范围
+function valRange(sigData){
+  if(!sigData||!sigData.length)return{min:null,max:null,avg:null};
+  var mn=Infinity,mx=-Infinity,sum=0;
+  for(var i=0;i<sigData.length;i++){
+    var v=sigData[i].v;
+    if(v<mn)mn=v;if(v>mx)mx=v;sum+=v;
+  }
+  return{min:mn,max:mx,avg:sum/sigData.length};
+}
+
+// 检查信号是否长时间保持某值
+function isStuck(sigData,thresholdPct){
+  if(!sigData||sigData.length<10)return false;
+  var counts={};
+  for(var i=0;i<sigData.length;i++){
+    var v=sigData[i].v;
+    counts[v]=(counts[v]||0)+1;
+  }
+  var maxCount=0;
+  for(var v in counts){if(counts[v]>maxCount)maxCount=counts[v]}
+  return maxCount/sigData.length>(thresholdPct||0.95);
+}
+
+// 时间格式化
+function fmtTime(t){
+  return t.toFixed(3)+'s';
+}
+
+// ====== 主分析函数 ======
+function runAiAnalysis(){
+  if(!S.ok)return;
+  var results=[];
+  var stats={checks:0,warnings:0,errors:0,ok:0};
+
+  function addResult(category,title,severity,detail){
+    results.push({category:category,title:title,severity:severity,detail:detail});
+    stats.checks++;
+    if(severity==='ok')stats.ok++;
+    if(severity==='warning')stats.warnings++;
+    if(severity==='error')stats.errors++;
+  }
+
+  var duration=0;
+  var msgs=fMsgs();
+  if(msgs.length>1)duration=msgs[msgs.length-1].ts-msgs[0].ts;
+
+  // ====== 1. 使能信号分析 ======
+  (function analyzeEnable(){
+    var vcuEn=findSignals('vcu_enable');
+    var mcuEn=findSignals('mcu_enable_fb');
+
+    if(vcuEn.length===0&&mcuEn.length===0)return;
+
+    for(var i=0;i<vcuEn.length;i++){
+      var d=vcuEn[i].data,r=valRange(d);
+      var ctrl=getCtrlPrefix(vcuEn[i].full);
+      if(r.min===0&&r.max===1){
+        var changes=changeCount(d);
+        if(changes===0){
+          addResult('使能信号',ctrl+' 使能信号无变化','warning',
+            '<span class="hl">'+vcuEn[i].full+'</span> 全程值=<span class="hl">'+lastVal(d)+'</span>，未检测到使能切换');
+        }else{
+          addResult('使能信号',ctrl+' 使能信号正常切换','ok',
+            '<span class="hl">'+vcuEn[i].full+'</span> 切换 <span class="ok">'+changes+'次</span>');
+        }
+      }
+    }
+
+    // 使能-响应一致性
+    if(vcuEn.length>0&&mcuEn.length>0){
+      var vcuD=vcuEn[0].data,mcuD=mcuEn[0].data;
+      var vcuLast=lastVal(vcuD),mcuLast=lastVal(mcuD);
+      if(vcuLast===1&&mcuLast!==1){
+        addResult('使能信号','VCU已使能但MCU未响应','error',
+          'VCU使能=<span class="err">'+vcuLast+'</span>，MCU反馈=<span class="err">'+mcuLast+'</span>，可能存在使能链路故障');
+      }else if(vcuLast===mcuLast){
+        addResult('使能信号','VCU-MCU使能状态一致','ok',
+          '双方使能状态=<span class="ok">'+vcuLast+'</span>');
+      }
+    }
+  })();
+
+  // ====== 2. 控制模式分析 ======
+  (function analyzeMode(){
+    var vcuMode=findSignals('vcu_mode');
+    var mcuMode=findSignals('mcu_mode_fb');
+
+    if(vcuMode.length>0){
+      var d=vcuMode[0].data,r=valRange(d);
+      var changes=changeCount(d);
+      if(changes===0){
+        addResult('控制模式','控制模式全程未切换','info',
+          '<span class="hl">'+vcuMode[0].full+'</span> 值=<span class="hl">'+r.min+'</span>，共'+d.length+'帧');
+      }else{
+        addResult('控制模式','控制模式切换 '+changes+' 次','ok',
+          '<span class="hl">'+vcuMode[0].full+'</span> 范围 ['+r.min+'~+r.max+']');
+      }
+    }
+
+    // 模式一致性
+    if(vcuMode.length>0&&mcuMode.length>0){
+      var vLast=lastVal(vcuMode[0].data),mLast=lastVal(mcuMode[0].data);
+      if(vLast!==mLast&&vLast!==null&&mLast!==null){
+        addResult('控制模式','VCU-MCU控制模式不一致','warning',
+          'VCU模式=<span class="warn">'+vLast+'</span>，MCU模式=<span class="warn">'+mLast+'</span>');
+      }
+    }
+  })();
+
+  // ====== 3. 扭矩指令-响应分析 ======
+  (function analyzeTorque(){
+    var vcuTrq=findSignals('vcu_torque');
+    var mcuTrq=findSignals('mcu_torque');
+
+    if(vcuTrq.length>0){
+      var d=vcuTrq[0].data,r=valRange(d);
+      addResult('扭矩指令','VCU扭矩指令范围','info',
+        '<span class="hl">'+vcuTrq[0].full+'</span><br>最小=<span class="hl">'+r.min.toFixed(1)+'</span> 最大=<span class="hl">'+r.max.toFixed(1)+'</span> 平均=<span class="hl">'+r.avg.toFixed(1)+'</span>');
+    }
+
+    if(mcuTrq.length>0){
+      var d2=mcuTrq[0].data,r2=valRange(d2);
+      addResult('扭矩响应','MCU输出扭矩范围','info',
+        '<span class="hl">'+mcuTrq[0].full+'</span><br>最小=<span class="hl">'+r2.min.toFixed(1)+'</span> 最大=<span class="hl">'+r2.max.toFixed(1)+'</span> 平均=<span class="hl">'+r2.avg.toFixed(1)+'</span>');
+
+      if(isStuck(d2)){
+        addResult('扭矩响应','MCU扭矩长时间无变化','warning',
+          '<span class="hl">'+mcuTrq[0].full+'</span> 超过95%时间保持同一值，可能处于停机或堵转状态');
+      }
+    }
+
+    // 扭矩跟踪分析
+    if(vcuTrq.length>0&&mcuTrq.length>0){
+      var vd=vcuTrq[0].data,md=mcuTrq[0].data;
+      var maxDiff=0,maxDiffTime=0;
+      var sampleCount=Math.min(vd.length,md.length,200);
+      for(var i=0;i<sampleCount;i++){
+        var vi=Math.floor(i*vd.length/sampleCount);
+        var mi=Math.floor(i*md.length/sampleCount);
+        var diff=Math.abs(vd[vi].v-md[mi].v);
+        if(diff>maxDiff){maxDiff=diff;maxDiffTime=vd[vi].t}
+      }
+      if(maxDiff>500){
+        addResult('扭矩跟踪','扭矩指令-响应偏差过大','warning',
+          '最大偏差=<span class="warn">'+maxDiff.toFixed(1)+'</span> @ '+fmtTime(maxDiffTime)+'<br>可能原因：响应延迟/扭矩限制/故障保护');
+      }else if(maxDiff>100){
+        addResult('扭矩跟踪','扭矩跟踪偏差','info',
+          '最大偏差=<span class="hl">'+maxDiff.toFixed(1)+'</span>，在合理范围内');
+      }else{
+        addResult('扭矩跟踪','扭矩跟踪良好','ok',
+          '最大偏差仅 <span class="ok">'+maxDiff.toFixed(1)+'</span>');
+      }
+    }
+  })();
+
+  // ====== 4. 转速指令-响应分析 ======
+  (function analyzeSpeed(){
+    var vcuSpd=findSignals('vcu_speed');
+    var mcuSpd=findSignals('mcu_speed');
+
+    if(vcuSpd.length>0){
+      var d=vcuSpd[0].data,r=valRange(d);
+      addResult('转速指令','VCU转速指令范围','info',
+        '<span class="hl">'+vcuSpd[0].full+'</span><br>最小=<span class="hl">'+r.min.toFixed(0)+'</span> 最大=<span class="hl">'+r.max.toFixed(0)+'</span> rpm');
+    }
+
+    if(mcuSpd.length>0){
+      var d2=mcuSpd[0].data,r2=valRange(d2);
+      addResult('转速响应','MCU电机转速范围','info',
+        '<span class="hl">'+mcuSpd[0].full+'</span><br>最小=<span class="hl">'+r2.min.toFixed(0)+'</span> 最大=<span class="hl">'+r2.max.toFixed(0)+'</span> rpm');
+
+      // 过速检测
+      if(r2.max>15000){
+        addResult('转速响应','检测到高转速','warning',
+          '最高转速=<span class="warn">'+r2.max.toFixed(0)+'</span> rpm，超过15000rpm阈值');
+      }
+    }
+  })();
+
+  // ====== 5. 温度监控分析 ======
+  (function analyzeTemp(){
+    var mcuMotorTemp=findSignals('mcu_motor_temp');
+    var mcuCtrlTemp=findSignals('mcu_ctrl_temp');
+
+    function checkTemp(sigs,label){
+      for(var i=0;i<sigs.length;i++){
+        var d=sigs[i].data,r=valRange(d);
+        var sev='ok',sevClass='ok';
+        if(r.max>120){sev='error';sevClass='err'}
+        else if(r.max>90){sev='warning';sevClass='warn'}
+        addResult('温度监控',label+'分析',sev,
+          '<span class="hl">'+sigs[i].full+'</span><br>范围=<span class="'+sevClass+'">'+r.min.toFixed(1)+'°C ~ '+r.max.toFixed(1)+'°C</span> 平均='+r.avg.toFixed(1)+'°C'+
+          (r.max>120?' <span class="err">⚠ 超过120°C危险阈值</span>':'')+
+          (r.max>90&&r.max<=120?' <span class="warn">⚠ 超过90°C警告阈值</span>':''));
+      }
+    }
+    checkTemp(mcuMotorTemp,'电机温度');
+    checkTemp(mcuCtrlTemp,'电控温度');
+
+    // 通用温度信号
+    var allTemps=findSignals('temperature');
+    for(var i=0;i<allTemps.length;i++){
+      // 跳过已分析的
+      var skip=false;
+      for(var j=0;j<mcuMotorTemp.length;j++){if(allTemps[i].full===mcuMotorTemp[j].full)skip=true}
+      for(var j=0;j<mcuCtrlTemp.length;j++){if(allTemps[i].full===mcuCtrlTemp[j].full)skip=true}
+      if(skip)continue;
+      var d=allTemps[i].data,r=valRange(d);
+      if(r.max>150||r.min<-60)continue; // 不像温度值
+      var sev='ok';
+      if(r.max>120)sev='error';
+      else if(r.max>90)sev='warning';
+      addResult('温度监控','温度信号',sev,
+        '<span class="hl">'+allTemps[i].full+'</span> '+r.min.toFixed(1)+'°C ~ '+r.max.toFixed(1)+'°C');
+    }
+  })();
+
+  // ====== 6. 故障诊断分析 ======
+  (function analyzeFault(){
+    var faultGrades=findSignals('mcu_fault_grade');
+    var faultCodes=findSignals('mcu_fault_code');
+
+    if(faultGrades.length>0){
+      for(var i=0;i<faultGrades.length;i++){
+        var d=faultGrades[i].data,r=valRange(d);
+        if(r.max>0){
+          addResult('故障诊断','检测到故障等级','error',
+            '<span class="hl">'+faultGrades[i].full+'</span><br>故障等级范围=<span class="err">'+r.min+' ~ '+r.max+'</span>，最高=<span class="err">'+r.max+'</span>');
+        }else{
+          addResult('故障诊断','故障等级正常','ok',
+            '<span class="hl">'+faultGrades[i].full+'</span> 全程=<span class="ok">0 (无故障)</span>');
+        }
+      }
+    }
+
+    // 通用故障码
+    var allFaults=findSignals('fault');
+    for(var i=0;i<allFaults.length;i++){
+      var d=allFaults[i].data,r=valRange(d);
+      if(r.max===0&&r.min===0)continue; // 无故障
+      var ctrl=getCtrlPrefix(allFaults[i].full);
+      addResult('故障诊断',ctrl+' 故障信号','error',
+        '<span class="hl">'+allFaults[i].full+'</span><br>范围=<span class="err">'+r.min+' ~ '+r.max+'</span> 最终值=<span class="err">'+lastVal(d)+'</span>');
+    }
+  })();
+
+  // ====== 7. 主动放电分析 ======
+  (function analyzeDischarge(){
+    var vcuDis=findSignals('vcu_discharge');
+    if(vcuDis.length>0){
+      var d=vcuDis[0].data,r=valRange(d);
+      var changes=changeCount(d);
+      addResult('放电控制','VCU主动放电信号','info',
+        '<span class="hl">'+vcuDis[0].full+'</span><br>范围=['+r.min+'~'+r.max+'] 切换 <span class="hl">'+changes+'</span>次 最终=<span class="hl">'+lastVal(d)+'</span>');
+    }
+  })();
+
+  // ====== 8. 母线电气参数分析 ======
+  (function analyzeDC(){
+    var mcuVolt=findSignals('mcu_dc_voltage');
+    var mcuCurr=findSignals('mcu_dc_current');
+
+    if(mcuVolt.length>0){
+      var d=mcuVolt[0].data,r=valRange(d);
+      var sev='ok';
+      if(r.max>800)sev='error';
+      else if(r.max>600)sev='warning';
+      addResult('电气参数','母线电压',sev,
+        '<span class="hl">'+mcuVolt[0].full+'</span><br>范围=<span class="hl">'+r.min.toFixed(1)+'V ~ '+r.max.toFixed(1)+'V</span> 平均='+r.avg.toFixed(1)+'V'+
+        (r.max>800?' <span class="err">⚠ 过压</span>':''));
+    }
+
+    if(mcuCurr.length>0){
+      var d2=mcuCurr[0].data,r2=valRange(d2);
+      addResult('电气参数','母线电流','info',
+        '<span class="hl">'+mcuCurr[0].full+'</span><br>范围=<span class="hl">'+r2.min.toFixed(1)+'A ~ '+r2.max.toFixed(1)+'A</span>');
+    }
+  })();
+
+  // ====== 9. 信号质量分析 ======
+  (function analyzeQuality(){
+    var totalSignals=Object.keys(S.dec).length;
+    var emptySignals=0,stuckSignals=0;
+    for(var k in S.dec){
+      if(!S.dec[k]||S.dec[k].length===0){emptySignals++;continue}
+      if(isStuck(S.dec[k],0.99))stuckSignals++;
+    }
+    if(stuckSignals>0){
+      addResult('数据质量','部分信号值长时间不变','info',
+        '共 <span class="hl">'+totalSignals+'</span> 个信号，其中 <span class="warn">'+stuckSignals+'</span> 个超过99%时间保持同一值');
+    }
+    if(totalSignals>0){
+      addResult('数据质量','数据概览','info',
+        '信号总数=<span class="hl">'+totalSignals+'</span> | 持续时间=<span class="hl">'+duration.toFixed(2)+'s</span> | 总帧数=<span class="hl">'+msgs.length+'</span>');
+    }
+  })();
+
+  // ====== 渲染结果 ======
+  renderAiResults(results,stats,duration);
+}
+
+function renderAiResults(results,stats,duration){
+  $('aiEmpty').style.display='none';
+  var el=$('aiResults');
+  el.style.display='';
+
+  // 评分
+  var scorePct=stats.checks>0?(stats.ok/Math.max(stats.checks,1)*100):0;
+  var scoreClass=stats.errors>0?'bad':(stats.warnings>0?'warn':'good');
+  var scoreText=stats.errors>0?'需关注':(stats.warnings>0?'有警告':'良好');
+
+  var h='';
+
+  // 汇总卡片
+  h+='<div class="ai-summary">';
+  h+='<div class="ai-summary-hdr">📊 诊断报告 <span class="ai-score '+scoreClass+'">'+scoreText+'</span></div>';
+  h+='<div class="ai-stat-row">';
+  h+='<div class="ai-stat">检查项 <b>'+stats.checks+'</b></div>';
+  h+='<div class="ai-stat" style="color:#00ff88">正常 <b>'+stats.ok+'</b></div>';
+  h+='<div class="ai-stat" style="color:#ffd700">警告 <b>'+stats.warnings+'</b></div>';
+  h+='<div class="ai-stat" style="color:#ff6b9d">异常 <b>'+stats.errors+'</b></div>';
+  h+='</div></div>';
+
+  // 按类别分组
+  var categories={};
+  for(var i=0;i<results.length;i++){
+    var r=results[i];
+    if(!categories[r.category])categories[r.category]=[];
+    categories[r.category].push(r);
+  }
+
+  var catIcons={'使能信号':'⚡','控制模式':'🎛️','扭矩指令':'📐','扭矩响应':'📊','扭矩跟踪':'📈',
+    '转速指令':'🔄','转速响应':'⚙️','温度监控':'🌡️','故障诊断':'🚨',
+    '放电控制':'🔋','电气参数':'⚡','数据质量':'📋'};
+  var sevOrder={error:0,warning:1,info:2,ok:3};
+
+  var catNames=Object.keys(categories).sort(function(a,b){
+    var maxSevA=3,maxSevB=3;
+    for(var i=0;i<categories[a].length;i++){var s=sevOrder[categories[a][i].severity];if(s<maxSevA)maxSevA=s}
+    for(var i=0;i<categories[b].length;i++){var s=sevOrder[categories[b][i].severity];if(s<maxSevB)maxSevB=s}
+    return maxSevA-maxSevB;
+  });
+
+  for(var c=0;c<catNames.length;c++){
+    var cat=catNames[c];
+    var items=categories[cat];
+    var maxSev='ok';
+    for(var i=0;i<items.length;i++){
+      if(sevOrder[items[i].severity]<sevOrder[maxSev])maxSev=items[i].severity;
+    }
+    var badgeText=maxSev==='error'?'异常':(maxSev==='warning'?'警告':'正常');
+
+    h+='<div class="ai-section">';
+    h+='<div class="ai-section-hdr" data-cat="'+cat+'">';
+    h+='<span class="ai-cat-icon">'+(catIcons[cat]||'📌')+'</span>';
+    h+='<span class="ai-cat-name">'+cat+'</span>';
+    h+='<span class="ai-cat-badge '+maxSev+'">'+badgeText+' ('+items.length+')</span>';
+    h+='<span class="ai-arrow open">▶</span>';
+    h+='</div>';
+    h+='<div class="ai-section-body">';
+    for(var i=0;i<items.length;i++){
+      var item=items[i];
+      h+='<div class="ai-item">';
+      h+='<div class="ai-item-hdr"><span class="ai-item-sev '+item.severity+'"></span><span class="ai-item-title">'+item.title+'</span></div>';
+      h+='<div class="ai-item-detail">'+item.detail+'</div>';
+      h+='</div>';
+    }
+    h+='</div></div>';
+  }
+
+  if(!results.length){
+    h+='<div class="ai-empty"><div class="es-icon">🤷</div><div>未识别到可分析的信号</div><div style="font-size:11px;color:#555">请确保DBC文件包含VCU/MCU相关信号定义</div></div>';
+  }
+
+  el.innerHTML=h;
+
+  // 折叠交互
+  el.querySelectorAll('.ai-section-hdr').forEach(function(hdr){
+    hdr.addEventListener('click',function(){
+      var body=this.nextElementSibling;
+      var arrow=this.querySelector('.ai-arrow');
+      if(body.style.display==='none'){body.style.display='';arrow.classList.add('open')}
+      else{body.style.display='none';arrow.classList.remove('open')}
+    });
+  });
+}
+
+// AI按钮事件
+$('aiRunBtn').addEventListener('click',function(){
+  if(!S.ok)return;
+  $('aiResults').innerHTML='<div class="ai-progress">正在分析<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  $('aiResults').style.display='';
+  $('aiEmpty').style.display='none';
+  setTimeout(runAiAnalysis,200);
+});
+
+// 解析完成后启用AI按钮
+var origGoBtn=$('goBtn');
+var origClick=origGoBtn.onclick;
+
+console.log('CAN分析工具 v3.4 已加载 - 含AI智能诊断');
 })();
 </script>
 </body>
