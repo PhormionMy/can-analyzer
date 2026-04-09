@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v3.9 2026-04-09 09:55</title>
+<title>CAN分析工具 v4.0 2026-04-09 10:46</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v3.9 04-09 09:55</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.0 04-09 10:46</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -3497,12 +3497,29 @@ $('aiRunBtn').addEventListener('click',function(){
 // ====== 波形信号详细分析 ======
 function runWaveSigAnalysis(){
   if(!S.ok)return;
-  // 获取当前波形图上的所有信号
+
+  // 获取当前波形图可视时间范围
+  var viewT0=null,viewT1=null,isZoomed=false;
+  if(isValidTR()&&C.t0!==null&&C.t1!==null){
+    viewT0=C.t0;viewT1=C.t1;isZoomed=true;
+  }
+
+  // 获取当前波形图上的所有信号，并按可视范围裁剪数据
   var activeSigs=[];
   for(var k in C.ss){
     if(S.dec[k]&&S.dec[k].length>0){
       var ax=findAxis(C.ss[k]);
-      activeSigs.push({full:k,data:S.dec[k],axName:ax?ax.name:'未分配'});
+      var rawData=S.dec[k];
+      var clippedData=rawData;
+      if(isZoomed){
+        clippedData=[];
+        for(var i=0;i<rawData.length;i++){
+          if(rawData[i].t>=viewT0&&rawData[i].t<=viewT1)clippedData.push(rawData[i]);
+        }
+      }
+      if(clippedData.length>0){
+        activeSigs.push({full:k,data:clippedData,fullData:rawData,axName:ax?ax.name:'未分配'});
+      }
     }
   }
 
@@ -3592,6 +3609,22 @@ function runWaveSigAnalysis(){
     return{avgMs:avgInterval*1000,minMs:minInterval*1000,maxMs:maxInterval*1000,hz:avgInterval>0?1/avgInterval:0};
   }
 
+  // 分析时间范围概览
+  var timeRangeInfo='';
+  if(isZoomed){
+    timeRangeInfo='<div style="background:#0a1628;border:1px solid #00d4ff33;border-radius:8px;padding:10px;margin-bottom:12px">';
+    timeRangeInfo+='<div style="font-size:12px;color:#00d4ff;font-weight:600;margin-bottom:4px">🔍 分析范围: 缩放后可视时间段</div>';
+    timeRangeInfo+='<div style="font-size:11px;color:#aaa">'+fmtTime(viewT0)+' → '+fmtTime(viewT1)+' ('+((viewT1-viewT0)).toFixed(3)+'s)</div>';
+    timeRangeInfo+='<div style="font-size:10px;color:#666;margin-top:2px">全量数据: '+fmtTime(activeSigs[0].fullData[0].t)+' → '+fmtTime(activeSigs[0].fullData[activeSigs[0].fullData.length-1].t)+'</div>';
+    timeRangeInfo+='</div>';
+  }else{
+    timeRangeInfo='<div style="background:#0a1628;border:1px solid #333;border-radius:8px;padding:10px;margin-bottom:12px">';
+    timeRangeInfo+='<div style="font-size:12px;color:#888;font-weight:600;margin-bottom:4px">📊 分析范围: 全量数据</div>';
+    timeRangeInfo+='<div style="font-size:10px;color:#555">提示: 在波形图上缩放后，此处将分析对应时间段的数据</div>';
+    timeRangeInfo+='</div>';
+  }
+  addResult('分析范围','时间范围','info',timeRangeInfo);
+
   // 每个信号的详细分析
   for(var i=0;i<activeSigs.length;i++){
     var sig=activeSigs[i];
@@ -3622,10 +3655,13 @@ function runWaveSigAnalysis(){
     h+='<div class="ai-stat">中位数 <b>'+med.toFixed(2)+'</b></div>';
     h+='<div class="ai-stat">标准差 <b>'+sd.toFixed(3)+'</b></div>';
     h+='<div class="ai-stat">极差 <b>'+((r.max-r.min).toFixed(2))+'</b></div>';
-    h+='<div class="ai-stat">数据点 <b>'+d.length+'</b></div>';
+    h+='<div class="ai-stat">数据点 <b>'+d.length+'</b>'+(isZoomed&&sig.fullData?' / '+sig.fullData.length:'')+'</div>';
     h+='<div class="ai-stat">变化次数 <b>'+changes+'</b></div>';
     h+='<div class="ai-stat">变化率 <b>'+cr.toFixed(2)+'/s</b></div>';
     h+='</div>';
+    if(isZoomed&&sig.fullData){
+      h+='<div style="font-size:10px;color:#555;margin-bottom:4px">📌 以上统计基于当前缩放可视范围 ('+((d.length/sig.fullData.length)*100).toFixed(1)+'% 的数据)</div>';
+    }
 
     // 采样率信息
     if(sampRate){
@@ -3729,7 +3765,7 @@ $('aiWaveBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v3.9 2026-04-09 09:55 交互式模式配置 + 波形信号详细分析");
+console.log("CAN分析工具 v4.0 2026-04-09 10:46 波形时间段分析");
 })();
 </script>
 </body>
