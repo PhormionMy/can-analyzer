@@ -2725,37 +2725,65 @@ function runAiAnalysis(){
   (function analyzeTemp(){
     var mcuMotorTemp=findSignals('mcu_motor_temp');
     var mcuCtrlTemp=findSignals('mcu_ctrl_temp');
+    var mcuVolt=findSignals('mcu_dc_voltage');
 
-    function checkTemp(sigs,label){
-      for(var i=0;i<sigs.length;i++){
-        var d=sigs[i].data,r=valRange(d);
-        var sev='ok',sevClass='ok';
-        if(r.max>120){sev='error';sevClass='err'}
-        else if(r.max>90){sev='warning';sevClass='warn'}
-        addResult('温度监控',label+'分析',sev,
-          '<span class="hl">'+sigs[i].full+'</span><br>范围=<span class="'+sevClass+'">'+r.min.toFixed(1)+'°C ~ '+r.max.toFixed(1)+'°C</span> 平均='+r.avg.toFixed(1)+'°C'+
-          (r.max>120?' <span class="err">⚠ 超过120°C危险阈值</span>':'')+
-          (r.max>90&&r.max<=120?' <span class="warn">⚠ 超过90°C警告阈值</span>':''));
-      }
+    // 电控温度阈值随母线电压线性调整
+    // 600V: 二级85°C 三级105°C
+    // 720V: 二级75°C 三级95°C
+    function getCtrlTempThreshold(avgDcVolt){
+      if(!avgDcVolt||avgDcVolt<=600)return{l2:85,l3:105};
+      if(avgDcVolt>=720)return{l2:75,l3:95};
+      var ratio=(avgDcVolt-600)/120;
+      return{l2:85-ratio*10,l3:105-ratio*10};
     }
-    checkTemp(mcuMotorTemp,'电机温度');
-    checkTemp(mcuCtrlTemp,'电控温度');
+
+    // 获取平均母线电压
+    var avgVolt=null;
+    if(mcuVolt.length>0){
+      avgVolt=valRange(mcuVolt[0].data).avg;
+    }
+
+    // 电机温度: 二级150°C 三级160°C
+    for(var i=0;i<mcuMotorTemp.length;i++){
+      var d=mcuMotorTemp[i].data,r=valRange(d);
+      var sev='ok',sevClass='ok',msg='';
+      if(r.max>=160){sev='error';sevClass='err';msg=' <span class="err">⚠ 超过三级过温阈值160°C</span>'}
+      else if(r.max>=150){sev='warning';sevClass='warn';msg=' <span class="warn">⚠ 超过二级过温阈值150°C</span>'}
+      addResult('温度监控','电机温度分析',sev,
+        '<span class="hl">'+mcuMotorTemp[i].full+'</span><br>范围=<span class="'+sevClass+'">'+r.min.toFixed(1)+'°C ~ '+r.max.toFixed(1)+'°C</span> 平均='+r.avg.toFixed(1)+'°C'+
+        msg+'<br><span style="color:#666">阈值: 二级=150°C 三级=160°C</span>');
+    }
+
+    // 电控温度: 基础二级85°C 三级105°C (随母线电压600-720V线性降低10°C)
+    for(var i=0;i<mcuCtrlTemp.length;i++){
+      var d2=mcuCtrlTemp[i].data,r2=valRange(d2);
+      var th=getCtrlTempThreshold(avgVolt);
+      var sev2='ok',sevClass2='ok',msg2='';
+      if(r2.max>=th.l3){sev2='error';sevClass2='err';msg2=' <span class="err">⚠ 超过三级过温阈值'+th.l3.toFixed(0)+'°C</span>'}
+      else if(r2.max>=th.l2){sev2='warning';sevClass2='warn';msg2=' <span class="warn">⚠ 超过二级过温阈值'+th.l2.toFixed(0)+'°C</span>'}
+      var voltNote=avgVolt?' 平均母线=<span class="hl">'+avgVolt.toFixed(0)+'V</span>':'';
+      var thNote='<br><span style="color:#666">阈值: 二级='+th.l2.toFixed(0)+'°C 三级='+th.l3.toFixed(0)+'°C';
+      if(avgVolt&&avgVolt>600)thNote+=' (母线'+avgVolt.toFixed(0)+'V已调整)';
+      thNote+='</span>';
+      addResult('温度监控','电控温度分析',sev2,
+        '<span class="hl">'+mcuCtrlTemp[i].full+'</span><br>范围=<span class="'+sevClass2+'">'+r2.min.toFixed(1)+'°C ~ '+r2.max.toFixed(1)+'°C</span> 平均='+r2.avg.toFixed(1)+'°C'+
+        voltNote+msg2+thNote);
+    }
 
     // 通用温度信号
     var allTemps=findSignals('temperature');
     for(var i=0;i<allTemps.length;i++){
-      // 跳过已分析的
       var skip=false;
       for(var j=0;j<mcuMotorTemp.length;j++){if(allTemps[i].full===mcuMotorTemp[j].full)skip=true}
       for(var j=0;j<mcuCtrlTemp.length;j++){if(allTemps[i].full===mcuCtrlTemp[j].full)skip=true}
       if(skip)continue;
-      var d=allTemps[i].data,r=valRange(d);
-      if(r.max>150||r.min<-60)continue; // 不像温度值
-      var sev='ok';
-      if(r.max>120)sev='error';
-      else if(r.max>90)sev='warning';
-      addResult('温度监控','温度信号',sev,
-        '<span class="hl">'+allTemps[i].full+'</span> '+r.min.toFixed(1)+'°C ~ '+r.max.toFixed(1)+'°C');
+      var d3=allTemps[i].data,r3=valRange(d3);
+      if(r3.max>200||r3.min<-60)continue;
+      var sev3='ok';
+      if(r3.max>=160)sev3='error';
+      else if(r3.max>=150)sev3='warning';
+      addResult('温度监控','温度信号',sev3,
+        '<span class="hl">'+allTemps[i].full+'</span> '+r3.min.toFixed(1)+'°C ~ '+r3.max.toFixed(1)+'°C');
     }
   })();
 
