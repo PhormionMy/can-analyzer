@@ -1,0 +1,14 @@
+#!/bin/bash
+FILE="index.html"
+if git diff --cached --name-only | grep -q "$FILE"; then
+  CUR=$(grep -oP 'v\K[\d.]+' "$FILE" | head -1)
+  if [ -z "$CUR" ]; then CUR="1.0"; fi
+  MAJOR=$(echo "$CUR" | cut -d. -f1)
+  MINOR=$(echo "$CUR" | cut -d. -f2)
+  MINOR=$((MINOR + 1))
+  NEW_VER="v${MAJOR}.${MINOR}"
+  TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
+  sed -i "s|<title>CAN分析工具 v[0-9.]* [0-9-]* [0-9:]*</title>|<title>CAN分析工具 ${NEW_VER} ${TIMESTAMP}</title>|" "$FILE"
+  git add "$FILE"
+  echo "✅ 版本已自动更新: ${NEW_VER} ${TIMESTAMP}"
+fi
