@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v5.8 2026-04-10 15:27</title>
+<title>CAN分析工具 v5.9 2026-04-10 15:59</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -620,8 +620,8 @@ var CURSOR_NEAR_THRESHOLD=20; // 光标吸附阈值(px)
 
 // ====== Build Version ======
 // BUILD_HASH 和 BUILD_TIME 由 git hook 自动替换，勿手动修改
-var BUILD_HASH = 'v5.7';
-var BUILD_TIME = '04-10 14:51';
+var BUILD_HASH = 'v5.9';
+var BUILD_TIME = '04-10 15:59';
 (function(){
   var el=document.getElementById('verTag');
   if(el) el.textContent=BUILD_HASH+' '+BUILD_TIME;
@@ -923,11 +923,15 @@ function dbcLibRender(){
 function dbcLibUse(key){
   var lib=dbcLibLoad(),item=lib[key];
   if(!item)return;
+  // 更新使用时间，排到最上面
+  item.ts=Date.now();
+  dbcLibSave(lib);
   var blob=new Blob([item.content],{type:'text/plain'});
   var file=new File([blob],item.name,{type:'text/plain'});
   S.dF.push({n:item.name,s:item.size,f:file});
   rFL('dbc');uB();
   $('dbcZone').classList.add('has-files');
+  dbcLibRender();
 }
 
 function dbcLibSaveCurrent(){
@@ -961,7 +965,13 @@ dbcLibRender();
 function renderBuiltinDbc(filter){
   var el=$('builtinDbcList'),empty=$('builtinDbcEmpty'),cnt=$('builtinDbcCnt');
   var fl=(filter||'').toLowerCase();
-  var names=Object.keys(BUILTIN_DBC).sort();
+  // 按最近使用时间排序，未使用过的按名称排序
+  var usedMap={};try{var raw=localStorage.getItem('can_bdbc_used');if(raw)usedMap=JSON.parse(raw)}catch(e){}
+  var names=Object.keys(BUILTIN_DBC).sort(function(a,b){
+    var ua=usedMap[a]||0,ub=usedMap[b]||0;
+    if(ua!==ub)return ub-ua;
+    return a.localeCompare(b);
+  });
   var total=names.length,shown=0,h='';
   for(var i=0;i<names.length;i++){
     var name=names[i];
@@ -1001,6 +1011,8 @@ $('builtinDbcHdr').addEventListener('click',function(e){
 function loadBuiltinDbc(name){
   var content=BUILTIN_DBC[name];
   if(!content)return;
+  // 记录使用时间
+  try{var usedMap={};var raw=localStorage.getItem('can_bdbc_used');if(raw)usedMap=JSON.parse(raw);usedMap[name]=Date.now();localStorage.setItem('can_bdbc_used',JSON.stringify(usedMap))}catch(e){}
   var blob=new Blob([content],{type:'text/plain'});
   var file=new File([blob],name,{type:'text/plain'});
   // Check if already added
@@ -1923,11 +1935,12 @@ function mChart(ax,sigs,yMn,yMx){
   }
   var ag=document.createElementNS(NS,'g');svg.appendChild(ag);
   var cg=document.createElementNS(NS,'g');svg.appendChild(cg);
-  var pH=document.createElementNS(NS,'rect');
-  pH.setAttribute('x',mg.l);pH.setAttribute('y',mg.t);
-  pH.setAttribute('width',pw);pH.setAttribute('height',ph);
-  pH.setAttribute('fill','transparent');pH.setAttribute('pointer-events','all');svg.appendChild(pH);
   svgContainer.appendChild(svg);
+
+  // HTML overlay for reliable mouse/touch handling (SVG rect pointer-events unreliable on some browsers)
+  var pOverlay=document.createElement('div');
+  pOverlay.style.cssText='position:absolute;cursor:crosshair;z-index:5;';
+  svgContainer.appendChild(pOverlay);
 
   // 操作提示
   var hint=document.createElement('div');
@@ -1935,7 +1948,7 @@ function mChart(ax,sigs,yMn,yMx){
   hint.innerHTML='双指缩放 · 单指平移 · 点击放光标';
   svgContainer.appendChild(hint);
 
-  // 光标信息栏（替换原来的cursor-status + cursor-handle，显示在图例下方）
+  // 光标信息栏
   var cursorInfoBar=document.createElement('div');
   cursorInfoBar.className='cursor-info-bar hidden';
   wrap.insertBefore(cursorInfoBar,svgContainer);
@@ -1945,9 +1958,21 @@ function mChart(ax,sigs,yMn,yMx){
     ax:ax,aid:ax.id,ac:ax.color,an:ax.name,
     sigs:sigs,yMn:yMn,yMx:yMx,
     mg:mg,W:W,H:H,pw:pw,ph:ph,
-    gg:gg,paths:paths,ag:ag,cg:cg,pH:pH,
+    gg:gg,paths:paths,ag:ag,cg:cg,pOverlay:pOverlay,
     hint:hint,cursorInfoBar:cursorInfoBar
   };
+
+  // 同步 overlay 位置到绘图区域
+  function syncOverlay(){
+    var svgRect=svg.getBoundingClientRect();
+    var containerRect=svgContainer.getBoundingClientRect();
+    var scaleX=svgRect.width/sub.W;
+    var scaleY=svgRect.height/sub.H;
+    pOverlay.style.left=(mg.l*scaleX)+'px';
+    pOverlay.style.top=(mg.t*scaleY)+'px';
+    pOverlay.style.width=(sub.pw*scaleX)+'px';
+    pOverlay.style.height=(sub.ph*scaleY)+'px';
+  }
 
   // Resize observer
   var ro=new ResizeObserver(function(entries){
@@ -1956,7 +1981,8 @@ function mChart(ax,sigs,yMn,yMx){
       if(w!==sub.W){
         sub.W=w;sub.pw=w-mg.l-mg.r;
         svg.setAttribute('viewBox','0 0 '+w+' '+sub.H);
-        bg.setAttribute('width',w);cr.setAttribute('width',sub.pw);pH.setAttribute('width',sub.pw);
+        bg.setAttribute('width',w);cr.setAttribute('width',sub.pw);
+        syncOverlay();
         dChart(sub);
       }
     }
@@ -1967,8 +1993,9 @@ function mChart(ax,sigs,yMn,yMx){
     if(cw>0){
       sub.W=cw;sub.pw=cw-mg.l-mg.r;
       svg.setAttribute('viewBox','0 0 '+cw+' '+sub.H);
-      bg.setAttribute('width',cw);cr.setAttribute('width',sub.pw);pH.setAttribute('width',sub.pw);
+      bg.setAttribute('width',cw);cr.setAttribute('width',sub.pw);
     }
+    syncOverlay();
     dChart(sub);
   });
 
@@ -2029,7 +2056,7 @@ function mChart(ax,sigs,yMn,yMx){
     for(var i=0;i<C.subs.length;i++){delete C.subs[i]._dy0;delete C.subs[i]._dy1}
   }
 
-  pH.addEventListener('touchstart',function(e){
+  pOverlay.addEventListener('touchstart',function(e){
     stopMomentum();
     if(e.touches.length===2){
       // 双指缩放
@@ -2079,7 +2106,7 @@ function mChart(ax,sigs,yMn,yMx){
     }
   },{passive:false});
 
-  pH.addEventListener('touchmove',function(e){
+  pOverlay.addEventListener('touchmove',function(e){
     if(C.touchZoom.active && e.touches.length===2){
       // 双指缩放
       e.preventDefault();
@@ -2173,7 +2200,7 @@ function mChart(ax,sigs,yMn,yMx){
     }
   },{passive:false});
 
-  pH.addEventListener('touchend',function(e){
+  pOverlay.addEventListener('touchend',function(e){
     if(C.touchZoom.active){
       C.touchZoom.active=false;
       hint.style.opacity='1';
@@ -2228,10 +2255,10 @@ function mChart(ax,sigs,yMn,yMx){
   });
 
   // Mouse events
-  pH.addEventListener('mousedown',function(e){if(e.button!==0)return;e.preventDefault();e.stopPropagation();chartPointerDown(e.clientX,e.clientY,sub)});
-  pH.addEventListener('mousemove',function(e){chartPointerMove(e.clientX,sub)});
+  pOverlay.addEventListener('mousedown',function(e){if(e.button!==0)return;e.preventDefault();e.stopPropagation();chartPointerDown(e.clientX,e.clientY,sub)});
+  pOverlay.addEventListener('mousemove',function(e){chartPointerMove(e.clientX,sub)});
 
-  pH.addEventListener('click',function(e){
+  pOverlay.addEventListener('click',function(e){
     if(C.cm===0||C._moved)return;
     var rect2=svg.getBoundingClientRect(),mx2=e.clientX-rect2.left;
     if(mx2<mg.l||mx2>mg.l+sub.pw)return;
@@ -2253,14 +2280,14 @@ function mChart(ax,sigs,yMn,yMx){
     uCur();
   });
   
-  pH.addEventListener('contextmenu',function(e){
+  pOverlay.addEventListener('contextmenu',function(e){
     e.preventDefault();
     C.c1=null;C.c2=null;C.hov=null;C.selectedCursor=null;
     updateCursorInfo(sub);uCur();
   });
 
   // 双击 → 适应全部
-  pH.addEventListener('dblclick',function(e){
+  pOverlay.addEventListener('dblclick',function(e){
     if(C.cm!==0)return; // 光标模式下不触发
     var aT=collectAllTimes();
     if(aT.length){
