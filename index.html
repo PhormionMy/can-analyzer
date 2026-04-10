@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v5.0 2026-04-10 10:35</title>
+<title>CAN分析工具 v5.1 2026-04-10 10:41</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -136,6 +136,20 @@ body{display:flex;flex-direction:column}
 .upload-status{text-align:center;padding:8px;font-size:12px;color:#666}
 .upload-status.ok{color:#00ff88}
 .raw-page{flex:1;overflow-y:auto;padding:10px;-webkit-overflow-scrolling:touch}
+.raw-id-bar{background:#111218;border-radius:12px;padding:10px;margin-bottom:10px;border:0.5px solid #2a2a3a}
+.raw-id-summary{font-size:11px;color:#888;margin-bottom:6px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.raw-id-summary .dbc-count{color:#00ff88;font-weight:600}
+.raw-id-summary .total-count{color:#888}
+.raw-id-summary .mapped-bar{flex:1;min-width:60px;height:6px;background:#1a1a2e;border-radius:3px;overflow:hidden}
+.raw-id-summary .mapped-fill{height:100%;background:linear-gradient(90deg,#00ff88,#00d4ff);border-radius:3px;transition:width .3s}
+.raw-id-list{display:flex;flex-wrap:wrap;gap:4px;max-height:180px;overflow-y:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.raw-id-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;font-size:11px;cursor:pointer;border:0.5px solid #2a2a3a;background:#15152a;color:#888;transition:all .12s;white-space:nowrap;flex-shrink:0}
+.raw-id-chip:active{transform:scale(0.96)}
+.raw-id-chip.mapped{border-color:#00ff8844;background:#001a0a;color:#00ff88}
+.raw-id-chip.active{border-color:#00d4ff;color:#00d4ff;background:#0a1628}
+.raw-id-chip .chip-id{font-weight:600}
+.raw-id-chip .chip-name{font-size:9px;opacity:.8;max-width:80px;overflow:hidden;text-overflow:ellipsis}
+.raw-id-chip .chip-cnt{font-size:9px;color:#555;background:#1a1a2e;padding:1px 4px;border-radius:4px}
 .tl-section{background:#111218;border-radius:12px;padding:10px 12px;margin-bottom:10px;border:0.5px solid #2a2a3a}
 .tl-hdr{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap}
 .tl-id{color:#00d4ff;font-weight:700;font-size:14px}
@@ -309,7 +323,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v5.0 04-10 10:35</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v5.1 04-10 10:41</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -341,6 +355,13 @@ body{display:flex;flex-direction:column}
   </div>
   <div class="page" id="page-raw">
     <div class="raw-page">
+      <div class="raw-id-bar" id="rawIdBar" style="display:none">
+        <div class="raw-id-summary" id="rawIdSummary"></div>
+        <div class="raw-id-filter">
+          <input type="text" class="id-search" id="rawIdSearch" placeholder="🔍 搜索ID或信号名..." style="margin:0 0 6px 0">
+        </div>
+        <div class="raw-id-list" id="rawIdList"></div>
+      </div>
       <div class="tl-section" id="tlSec" style="display:none">
         <div class="tl-hdr">
           <span class="tl-id" id="tlId"></span><span class="tl-nm" id="tlNm"></span><span class="tl-ch-badge" id="tlCh"></span>
@@ -350,7 +371,7 @@ body{display:flex;flex-direction:column}
         <div class="tl-slider"><div class="tl-track" id="tlTrk"><div class="tl-fill" id="tlFl"></div></div><div class="tl-handle" id="tlHdl"></div><div class="tl-ticks" id="tlTks"></div></div>
       </div>
       <div id="rawContent">
-        <div class="empty-state" id="rawE"><div class="es-icon">📋</div><div>请选择报文ID</div><div style="font-size:11px;color:#555">在左侧菜单中选择</div></div>
+        <div class="empty-state" id="rawE"><div class="es-icon">📋</div><div>请选择报文ID</div><div style="font-size:11px;color:#555">点击上方报文ID列表选择</div></div>
         <div id="rawCards" style="display:none">
           <div class="data-card"><div class="data-card-hdr"><span class="ico">0x</span><span class="tit">原始数据</span><span class="inf" id="hxDLC">DLC:0</span></div><div class="hex-grid" id="hxG"></div></div>
           <div class="data-card"><div class="data-card-hdr"><span class="ico">Σ</span><span class="tit">解析信号</span><span class="inf" id="sigInf">0个</span></div><div style="overflow-x:auto"><table class="sig-table"><thead><tr><th>信号名</th><th>原始值</th><th>物理值</th><th>单位</th><th>范围</th><th>位</th></tr></thead><tbody id="sigTb"></tbody></table></div></div>
@@ -1307,7 +1328,7 @@ $('goBtn').addEventListener('click',async function(){
     var dc='';
     for(var d=0;d<S.dF.length;d++)dc+=await rd(S.dF[d].f);
     pDBC(dc);
-    for(var a=0;a<S.aF.length;a++){var fn=S.aF[a].n.toLowerCase();if(fn.endsWith(".blf")){var bb=await rdBin(S.aF[a].f);var blfMsgs=pBLF(bb);console.log("BLF parsed:",blfMsgs.length,"messages");var ascText=blfToAsc(blfMsgs);S.msgs=S.msgs.concat(pASC(ascText))}else{var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}}
+    for(var a=0;a<S.aF.length;a++){var fn=S.aF[a].n.toLowerCase();if(fn.endsWith(".blf")){var bb=await rdBin(S.aF[a].f);var blfMsgs=pBLF(bb);console.log("BLF parsed:",blfMsgs.length,"messages");S.msgs=S.msgs.concat(blfMsgs)}else{var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}}
     S.msgs.sort(function(a,b){return a.ts-b.ts});
     var cs={};
     for(var i=0;i<S.msgs.length;i++)cs[S.msgs[i].ch]=1;
@@ -1315,7 +1336,11 @@ $('goBtn').addEventListener('click',async function(){
     for(var c=0;c<S.chs.length;c++)S.selCh[S.chs[c]]=true;
     bFull();dSigs();bIdF();
     S.ok=true;
-    uSt();rChSel();rIdList();rSigPanel();rProto();
+    uSt();rChSel();rIdList();rSigPanel();rProto();rRawIdBar();
+    // Auto-select first DBC-matched ID
+    var firstMapped=null;
+    for(var h in S.idF){if(S.lk[h]&&S.lk[h].sigs.length>0){firstMapped=h;break}}
+    if(firstMapped){selId(firstMapped)}else{var allIds=Object.keys(S.idF);if(allIds.length)selId(allIds[0])}
     $('aiRunBtn').disabled=false;
     $('aiDescBtn').disabled=false;
     $('aiWaveBtn').disabled=false;
@@ -1391,10 +1416,49 @@ function rIdList(){
   el.querySelectorAll('[data-id]').forEach(function(el2){el2.addEventListener('click',function(){selId(this.dataset.id)})});
 }
 $('idSearch').addEventListener('input',function(){rIdList()});
+$('rawIdSearch').addEventListener('input',function(){rRawIdBar()});
+
+// ====== Raw Page ID Bar ======
+function rRawIdBar(){
+  if(!S.ok){$('rawIdBar').style.display='none';return}
+  $('rawIdBar').style.display='';
+  var m=fMsgs(),cnt={},mapped=0,total=0;
+  for(var i=0;i<m.length;i++){
+    var k=m[i].idH;
+    if(!cnt[k])cnt[k]={n:0,def:S.lk[k]||null};
+    cnt[k].n++;
+  }
+  var ids=Object.keys(cnt);
+  total=ids.length;
+  for(var j=0;j<ids.length;j++){if(cnt[ids[j]].def&&cnt[ids[j]].def.sigs.length>0)mapped++}
+  // Summary
+  var pct=total?Math.round(mapped/total*100):0;
+  $('rawIdSummary').innerHTML='<span class="dbc-count">'+mapped+' 个DBC匹配</span><span class="total-count">/ '+total+' 个ID</span><div class="mapped-bar"><div class="mapped-fill" style="width:'+pct+'%"></div></div>';
+  // Sort: mapped first, then by count desc
+  var fl=$('rawIdSearch').value.toLowerCase();
+  ids.sort(function(a,b){
+    var da=cnt[a].def&&cnt[a].def.sigs.length>0,db=cnt[b].def&&cnt[b].def.sigs.length>0;
+    if(da!==db)return da?-1:1;
+    return cnt[b].n-cnt[a].n;
+  });
+  var h='';
+  for(var i=0;i<ids.length;i++){
+    var idH=ids[i],info=cnt[idH],def=info.def;
+    if(fl&&idH.toLowerCase().indexOf(fl)<0&&!(def&&def.name.toLowerCase().indexOf(fl)>=0))continue;
+    var isMapped=def&&def.sigs.length>0;
+    var active=S.selId===idH?' active':'';
+    var mappedCls=isMapped?' mapped':'';
+    h+='<div class="raw-id-chip'+mappedCls+active+'" data-rid="'+idH+'"><span class="chip-id">0x'+idH+'</span>'+(isMapped?'<span class="chip-name">'+def.name+'</span>':'')+'<span class="chip-cnt">'+info.n+'</span></div>';
+  }
+  $('rawIdList').innerHTML=h||'<div style="color:#444;font-size:10px;padding:8px">无匹配</div>';
+  $('rawIdList').querySelectorAll('[data-rid]').forEach(function(el){
+    el.addEventListener('click',function(){selId(this.dataset.rid);rRawIdBar()});
+  });
+}
 
 function selId(h){
   S.selId=S.selId===h?null:h;
-  rIdList();
+  rIdList();rRawIdBar();
   if(S.selId&&S.idF[S.selId]){
     R.i=0;$('tlSec').style.display='';$('rawE').style.display='none';$('rawCards').style.display='';
     setupTL();updateRD();closeDrawer();switchPage('raw');
