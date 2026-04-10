@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v5.2 2026-04-10 10:48</title>
+<title>CAN分析工具 v5.3 2026-04-10 10:56</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -323,7 +323,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v5.2 04-10 10:48</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v5.3 04-10 10:56</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -1167,21 +1167,19 @@ function pBLF(buf){
       if(payP<0||payP+payS>cl)payS=cl-payP;
 
       // CAN_MESSAGE type=1 or CAN_MESSAGE2 type=86
-      // payload: channel(u16) flags(u8) dlc(u8) can_id(u32) data(u8[8])
-      if((cObjType===1||cObjType===86)&&payS>=12){
+      // BLF payload: channel(u16) flags(u8) dlc(u8) can_id(u32) reserved(u32) data(u8[8])
+      // Data starts at offset 16 (NOT 12 — there's a 4-byte reserved field after can_id)
+      if((cObjType===1||cObjType===86)&&payS>=16){
         var ch=cdv.getUint16(payP,true)+1;
         var dlc=cd[payP+3];
         var canId=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
         var d=[];
-        // Read data bytes: start at payP+12, read dlc bytes (max 8 for standard CAN)
         var bytesToRead=Math.min(dlc>0?dlc:8,8);
         for(var k=0;k<bytesToRead;k++){
-          if(payP+12+k<cl)d.push(cd[payP+12+k]);
+          if(payP+16+k<cl)d.push(cd[payP+16+k]);
         }
-        // Debug: log first 3 messages with full byte dump
         if(msgs.length<3){
-          var objHex='';for(var di2=0;di2<Math.min(cObjSize,48);di2++)objHex+=(cd[p+di2]<16?'0':'')+cd[p+di2].toString(16)+' ';
-          console.log("[BLF] MSG#"+msgs.length+" type="+cObjType+" ch="+ch+" id=0x"+canId.toString(16)+" dlc="+dlc+" data=["+d.map(function(b){return(b<16?'0':'')+b.toString(16)}).join(',')+"] hdrSize="+cHdrSize+" objSize="+cObjSize+" payP="+payP+" payS="+payS);
+          console.log("[BLF] MSG#"+msgs.length+" type="+cObjType+" ch="+ch+" id=0x"+canId.toString(16)+" dlc="+dlc+" data=["+d.map(function(b){return(b<16?'0':'')+b.toString(16)}).join(',')+"] objSize="+cObjSize);
         }
         msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
         foundInChunk++;
