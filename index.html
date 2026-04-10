@@ -798,6 +798,7 @@ function switchPage(page){
   // 离开波形页时，清除光标显示、tooltip和cursor-status
   if(page!=='chart'){
     $('tooltip').style.display='none';
+    cleanupDragListeners();
     for(var i=0;i<C.subs.length;i++){
       C.subs[i].cursorInfoBar.classList.add('hidden');
       C.subs[i].cursorInfoBar.innerHTML='';
@@ -1725,7 +1726,18 @@ function detectNearCursor(sub,mx){
   return null;
 }
 
+// 拖动监听器清理（防止重建/切换页面后残留）
+function cleanupDragListeners(){
+  C.dr=false;C.curDrag=null;
+  window.removeEventListener('mousemove',onPD);
+  window.removeEventListener('mouseup',onPU);
+  window.removeEventListener('mousemove',onCD);
+  window.removeEventListener('mouseup',onCU);
+}
+
 function rChart(){
+  // 清理残留的窗口级事件监听器（防止页面切换/重建后拖动失效）
+  cleanupDragListeners();
   var ct=$('chartCt');
   if(!C.yr||typeof C.yr!=='object')C.yr={};
 
@@ -1880,7 +1892,7 @@ function mChart(ax,sigs,yMn,yMx){
   var pH=document.createElementNS(NS,'rect');
   pH.setAttribute('x',mg.l);pH.setAttribute('y',mg.t);
   pH.setAttribute('width',pw);pH.setAttribute('height',ph);
-  pH.setAttribute('fill','transparent');svg.appendChild(pH);
+  pH.setAttribute('fill','transparent');pH.setAttribute('pointer-events','all');svg.appendChild(pH);
   svgContainer.appendChild(svg);
 
   // 操作提示
@@ -2176,7 +2188,7 @@ function mChart(ax,sigs,yMn,yMx){
   });
 
   // Mouse events
-  pH.addEventListener('mousedown',function(e){if(e.button!==0)return;chartPointerDown(e.clientX,e.clientY,sub)});
+  pH.addEventListener('mousedown',function(e){if(e.button!==0)return;e.preventDefault();chartPointerDown(e.clientX,e.clientY,sub)});
   pH.addEventListener('mousemove',function(e){chartPointerMove(e.clientX,sub)});
 
   pH.addEventListener('click',function(e){
@@ -2276,6 +2288,11 @@ function updateCursorInfo(sub){
 
 function chartPointerDown(cx,cy,sub){
   stopMomentum();
+  // 清理可能残留的旧监听器
+  window.removeEventListener('mousemove',onPD);
+  window.removeEventListener('mouseup',onPU);
+  window.removeEventListener('mousemove',onCD);
+  window.removeEventListener('mouseup',onCU);
   var rect=sub.svg.getBoundingClientRect(),mx=cx-rect.left;
   C._moved=false;C._movedX=cx;C._movedY=cy;
 
@@ -2317,6 +2334,8 @@ function chartPointerMove(cx,sub){
 }
 
 function startDrag(){
+  window.removeEventListener('mousemove',onCD);
+  window.removeEventListener('mouseup',onCU);
   window.addEventListener('mousemove',onCD);
   window.addEventListener('mouseup',onCU);
 }
