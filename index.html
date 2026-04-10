@@ -360,8 +360,8 @@ body{display:flex;flex-direction:column}
   </div>
   <div class="page" id="page-upload">
     <div class="upload-page">
-      <div class="upload-section"><div class="upload-section-title">📄 ASC 日志文件</div><div class="upload-section-desc">CAN总线记录数据，支持 .asc .txt .csv 格式</div>
-        <div class="upload-zone" id="ascZone"><input type="file" id="ascIn" accept=".asc,.txt,.csv,.ASC,.TXT,.CSV,application/octet-stream" multiple><div class="uz-icon">📁</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.asc .txt .csv</div></div>
+      <div class="upload-section"><div class="upload-section-title">📄 ASC/BLF 日志文件</div><div class="upload-section-desc">CAN总线记录数据，支持 .asc .txt .csv .blf 格式</div>
+        <div class="upload-zone" id="ascZone"><input type="file" id="ascIn" accept=".asc,.txt,.csv,.blf,.ASC,.TXT,.CSV,.BLF,application/octet-stream" multiple><div class="uz-icon">📁</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.asc .txt .csv .blf</div></div>
         <div class="file-list" id="ascL"></div>
       </div>
       <div class="upload-section"><div class="upload-section-title">📐 DBC 协议文件</div><div class="upload-section-desc">CAN信号数据库定义文件</div>
@@ -386,7 +386,7 @@ body{display:flex;flex-direction:column}
           <button class="ct-btn" id="dbcLibSaveBtn" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;font-size:12px;display:none">💾 保存当前上传的DBC到库</button>
         </div>
       </div>
-      <div class="upload-status" id="uploadStatus">请上传ASC和DBC文件</div>
+      <div class="upload-status" id="uploadStatus">请上传ASC/BLF和DBC文件</div>
       <button class="parse-btn" id="goBtn" disabled>▶ 开始解析</button>
     </div>
   </div>
@@ -819,7 +819,7 @@ function rFL(type){
 function uB(){
   var ok=S.aF.length>0&&S.dF.length>0;$('goBtn').disabled=!ok;
   var st=$('uploadStatus');
-  st.textContent=ok?'已选择 ASC:'+S.aF.length+' DBC:'+S.dF.length+' — 可以解析':'请上传ASC和DBC文件';
+  st.textContent=ok?'已选择 日志:'+S.aF.length+' DBC:'+S.dF.length+' — 可以解析':'请上传ASC/BLF和DBC文件';
   st.className='upload-status'+(ok?' ok':'');
   $('dbcLibSaveBtn').style.display=S.dF.length>0?'':'none';
 }
@@ -831,6 +831,7 @@ var DBC_LIB_KEY='can_tool_dbc_lib';
 function dbcLibLoad(){
   try{var raw=localStorage.getItem(DBC_LIB_KEY);return raw?JSON.parse(raw):{}}catch(e){return{}}
 }
+function rdBin(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.onload=function(e){r(e.target.result)};rd2.onerror=j;rd2.readAsArrayBuffer(f)})}
 function dbcLibSave(lib){try{localStorage.setItem(DBC_LIB_KEY,JSON.stringify(lib))}catch(e){alert('存储空间不足，无法保存DBC到库')}}
 
 function dbcLibRender(){
@@ -1040,6 +1041,51 @@ function pASC(c){
   return msgs;
 }
 
+function pBLF(buf){
+  var dv=new DataView(buf),u8=new Uint8Array(buf),len=buf.byteLength;
+  if(len<16)return [];
+  var sig="";for(var i=0;i<4;i++)sig+=String.fromCharCode(u8[i]);
+  if(sig!=="LOGG"&&sig!=="LOBJ")return [];
+  var msgs=[],off=0;
+  if(sig==="LOGG"){
+    var hdrSize=dv.getUint32(4,true);
+    if(hdrSize<16||hdrSize>256)hdrSize=144;
+    off=hdrSize;
+  }
+  while(off+32<=len){
+    var osig="";for(var j=0;j<4;j++)osig+=String.fromCharCode(u8[off+j]);
+    if(osig!=="LOBJ"){off++;continue}
+    var hdrSize2=dv.getUint16(off+4,true);
+    if(hdrSize2<32){off+=4;continue}
+    var objType=dv.getUint16(off+6,true);
+    var objFlags=dv.getUint32(off+8,true);
+    var objSize=dv.getUint32(off+12,true);
+    if(objSize<4||objSize>10485760)break;
+    var ts1=dv.getUint32(off+16,true);
+    var ts2=dv.getUint32(off+20,true);
+    var timestamp=(ts2*4294967296+ts1)/1e9;
+    var payloadOff=off+hdrSize2;
+    var payloadSize=objSize-hdrSize2;
+    if(objType===1&&payloadSize>=10&&payloadOff+payloadSize<=len){
+      var compressed=(objFlags&2)!==0;
+      if(!compressed){
+        var ch=dv.getUint16(payloadOff,true)+1;
+        var canFlags=dv.getUint16(payloadOff+2,true);
+        var dlc=dv.getUint8(payloadOff+6);
+        var canId=dv.getUint32(payloadOff+8,true);
+        var ext=(canFlags&0x8000)!==0;
+        if(!ext)canId=canId&0x7FF;
+        var data=[];
+        for(var k=0;k<dlc&&payloadOff+12+k<len;k++)data.push(u8[payloadOff+12+k]);
+        msgs.push({ts:timestamp,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:data});
+      }
+    }
+    off+=objSize;
+  }
+  msgs.sort(function(a,b){return a.ts-b.ts});
+  return msgs;
+}
+
 function eBits(d,s,l,o){
   var r=0;
   if(o===1){
@@ -1125,7 +1171,7 @@ $('goBtn').addEventListener('click',async function(){
     var dc='';
     for(var d=0;d<S.dF.length;d++)dc+=await rd(S.dF[d].f);
     pDBC(dc);
-    for(var a=0;a<S.aF.length;a++){var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}
+    for(var a=0;a<S.aF.length;a++){var fn=S.aF[a].n.toLowerCase();if(fn.endsWith(".blf")){var bb=await rdBin(S.aF[a].f);S.msgs=S.msgs.concat(pBLF(bb))}else{var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}}
     S.msgs.sort(function(a,b){return a.ts-b.ts});
     var cs={};
     for(var i=0;i<S.msgs.length;i++)cs[S.msgs[i].ch]=1;
