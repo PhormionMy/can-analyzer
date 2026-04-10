@@ -1,16 +1,22 @@
 #!/bin/bash
 FILE="index.html"
 if git diff --cached --name-only | grep -q "$FILE"; then
-  CUR=$(grep -oP 'v\K[\d.]+' "$FILE" | head -1)
-  if [ -z "$CUR" ]; then CUR="1.0"; fi
-  MAJOR=$(echo "$CUR" | cut -d. -f1)
-  MINOR=$(echo "$CUR" | cut -d. -f2)
-  MINOR=$((MINOR + 1))
+  # 读取或初始化版本号
+  CUR=$(grep -oP "var BUILD_HASH = '\K[^']+" "$FILE" | head -1)
+  if [[ "$CUR" =~ ^v([0-9]+)\.([0-9]+)$ ]]; then
+    MAJOR="${BASH_REMATCH[1]}"
+    MINOR="${BASH_REMATCH[2]}"
+    MINOR=$((MINOR + 1))
+  else
+    MAJOR=5; MINOR=4
+  fi
   NEW_VER="v${MAJOR}.${MINOR}"
-  TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
   SHORT_DATE=$(date '+%m-%d %H:%M')
-  sed -i "s|<title>CAN分析工具 v[0-9.]* [0-9-]* [0-9:]*</title>|<title>CAN分析工具 ${NEW_VER} ${TIMESTAMP}</title>|" "$FILE"
-  sed -i "s|>v[0-9.]* [0-9]*-[0-9]* [0-9:]*</span|>${NEW_VER} ${SHORT_DATE}</span|" "$FILE"
+
+  # 更新 JS 变量
+  sed -i "s|var BUILD_HASH = '.*';|var BUILD_HASH = '${NEW_VER}';|" "$FILE"
+  sed -i "s|var BUILD_TIME = '.*';|var BUILD_TIME = '${SHORT_DATE}';|" "$FILE"
+
   git add "$FILE"
-  echo "版本已自动更新: ${NEW_VER} ${SHORT_DATE}"
+  echo "✅ 版本已自动更新: ${NEW_VER} ${SHORT_DATE}"
 fi

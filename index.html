@@ -323,7 +323,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v5.3 04-10 10:56</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span id="verTag" style="font-size:10px;color:#555;font-weight:400"></span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -617,6 +617,15 @@ var AC=['#00d4ff','#ffd700','#ff6b9d','#00ff88','#c084fc','#fb923c','#f87171','#
 var CC=['#00d4ff','#ff6b9d','#00ff88','#ffd700','#c084fc','#fb923c','#f87171','#60a5fa','#2dd4bf','#a3e635'];
 var NS='http://www.w3.org/2000/svg';
 var CURSOR_NEAR_THRESHOLD=20; // 光标吸附阈值(px)
+
+// ====== Build Version ======
+// BUILD_HASH 和 BUILD_TIME 由 git hook 自动替换，勿手动修改
+var BUILD_HASH = 'v5.4';
+var BUILD_TIME = '04-10 13:56';
+(function(){
+  var el=document.getElementById('verTag');
+  if(el) el.textContent='v'+BUILD_HASH+' '+BUILD_TIME;
+})();
 
 // ====== State ======
 var S={
