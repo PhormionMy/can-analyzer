@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.2 2026-04-10 09:23</title>
+<title>CAN分析工具 v4.3 2026-04-10 09:26</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -1177,40 +1177,6 @@ function blfToAsc(msgs){
     lines.push(ts+' '+m.ch+'  '+idStr+'             Rx   d '+m.dlc+' '+dataStr);
   }
   return lines.join('\n');
-}
-
-  while(off+32<=len){
-    var osig="";for(var j=0;j<4;j++)osig+=String.fromCharCode(u8[off+j]);
-    if(osig!=="LOBJ"){off++;continue}
-    var hdrSize2=dv.getUint16(off+4,true);
-    if(hdrSize2<32){off+=4;continue}
-    var objType=dv.getUint16(off+6,true);
-    var objFlags=dv.getUint32(off+8,true);
-    var objSize=dv.getUint32(off+12,true);
-    if(objSize<4||objSize>10485760)break;
-    var ts1=dv.getUint32(off+16,true);
-    var ts2=dv.getUint32(off+20,true);
-    var timestamp=(ts2*4294967296+ts1)/1e9;
-    var payloadOff=off+hdrSize2;
-    var payloadSize=objSize-hdrSize2;
-    if(objType===1&&payloadSize>=10&&payloadOff+payloadSize<=len){
-      var compressed=(objFlags&2)!==0;
-      if(!compressed){
-        var ch=dv.getUint16(payloadOff,true)+1;
-        var canFlags=dv.getUint16(payloadOff+2,true);
-        var dlc=dv.getUint8(payloadOff+6);
-        var canId=dv.getUint32(payloadOff+8,true);
-        var ext=(canFlags&0x8000)!==0;
-        if(!ext)canId=canId&0x7FF;
-        var data=[];
-        for(var k=0;k<dlc&&payloadOff+12+k<len;k++)data.push(u8[payloadOff+12+k]);
-        msgs.push({ts:timestamp,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:data});
-      }
-    }
-    off+=objSize;
-  }
-  msgs.sort(function(a,b){return a.ts-b.ts});
-  return msgs;
 }
 
 function eBits(d,s,l,o){
