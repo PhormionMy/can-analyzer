@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.9 2026-04-10 10:27</title>
+<title>CAN分析工具 v5.0 2026-04-10 10:35</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.9 04-10 10:27</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v5.0 04-10 10:35</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -1126,8 +1126,9 @@ function pBLF(buf){
   // Step 2: parse CAN messages from decompressed chunks
   var msgs=[];
   for(var ci=0;ci<chunks.length;ci++){
-    var cd=chunks[ci],cl=cd.length;
-    var cdv=new DataView(cd.buffer,cd.byteOffset,cl);
+    // Create a clean copy to avoid DataView buffer offset issues
+    var cd=new Uint8Array(chunks[ci]),cl=cd.length;
+    var cdv=new DataView(cd.buffer);
     var p=0,foundInChunk=0;
 
     while(p+16<=cl){
@@ -1165,8 +1166,10 @@ function pBLF(buf){
       var payP=p+cHdrSize,payS=cObjSize-cHdrSize;
       if(payP<0||payP+payS>cl)payS=cl-payP;
 
-      // CAN_MESSAGE (type 1): ch(u16) flags(u8) dlc(u8) can_id(u32) data(u8[8])
-      if(cObjType===1&&payS>=16){
+      // CAN_MESSAGE (type 1): ch(u16) flags(u8) dlc(u8) can_id(u32) data(u8[])
+      // CAN_MESSAGE2 (type 86): same payload layout, extra timestamp is in header not payload
+      // struct: channel(u16) flags(u8) dlc(u8) arbitration_id(u32) data(u8[8])
+      if((cObjType===1||cObjType===86)&&payS>=16){
         var ch=cdv.getUint16(payP,true)+1;
         var dlc=cd[payP+3];
         var canId=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
@@ -1174,17 +1177,6 @@ function pBLF(buf){
         var maxD=Math.min(dlc,8,payS-12);
         for(var k=0;k<maxD;k++)d.push(cd[payP+12+k]);
         msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
-        foundInChunk++;
-      }
-      // CAN_MESSAGE2 (type 86): ch(u16) flags(u8) dlc(u8) can_id(u32) timestamp(u64) data(u8[8])
-      else if(cObjType===86&&payS>=24){
-        var ch86=cdv.getUint16(payP,true)+1;
-        var dlc86=cd[payP+3];
-        var canId86=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
-        var d86=[];
-        var maxD86=Math.min(dlc86,8,payS-20);
-        for(var k86=0;k86<maxD86;k86++)d86.push(cd[payP+20+k86]);
-        msgs.push({ts:ts,ch:ch86,id:canId86,idH:hex(d2c(canId86)),dlc:dlc86,data:d86});
         foundInChunk++;
       }
       // CAN_FD_MESSAGE (type 100): ch(u16) flags(u8) dlc(u8) id(u32) tx(u8) valid(u8) fd_flags(u8) stuff(u8) data(...)
