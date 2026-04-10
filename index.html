@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.8 2026-04-10 10:15</title>
+<title>CAN分析工具 v4.9 2026-04-10 10:27</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.8 04-10 10:15</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.9 04-10 10:27</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -1154,10 +1154,10 @@ function pBLF(buf){
       if(cHdrSize>=32&&p+32<=cl){
         var tsLo=cdv.getUint32(p+24,true);
         var tsHi=cdv.getUint32(p+28,true);
-        var factor=1e-5; // default: 100ns units
-        if(cHdrVer>=2&&p+20<=cl){
+        var factor=1e-9; // default: 1ns units (Vector BLF standard)
+        if(p+20<=cl){
           var tsFlags=cdv.getUint32(p+16,true);
-          if(tsFlags&2)factor=1e-9; // bit 1 set = 1ns units
+          if(tsFlags&0x80000000)factor=1e-5; // bit 31 set = 100ns units (some tools)
         }
         ts=(tsHi*4294967296+tsLo)*factor;
       }
@@ -1165,10 +1165,9 @@ function pBLF(buf){
       var payP=p+cHdrSize,payS=cObjSize-cHdrSize;
       if(payP<0||payP+payS>cl)payS=cl-payP;
 
-      // CAN_MESSAGE (type 1) / CAN_MESSAGE2 (type 86, TX variant)
-      // Payload: channel(u16) flags(u8) dlc(u8) can_id(u32) data(u8[8])
-      if((cObjType===1||cObjType===86)&&payS>=16){
-        var ch=cdv.getUint16(payP,true)+1; // BLF channels are 0-based, ASC uses 1-based
+      // CAN_MESSAGE (type 1): ch(u16) flags(u8) dlc(u8) can_id(u32) data(u8[8])
+      if(cObjType===1&&payS>=16){
+        var ch=cdv.getUint16(payP,true)+1;
         var dlc=cd[payP+3];
         var canId=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
         var d=[];
@@ -1177,12 +1176,22 @@ function pBLF(buf){
         msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
         foundInChunk++;
       }
-      // CAN_FD_MESSAGE (type 100)
-      // Payload: channel(u16) flags(u8) dlc(u8) reserved(u3) tx_flags(u8) can_id(u32) data(...)
+      // CAN_MESSAGE2 (type 86): ch(u16) flags(u8) dlc(u8) can_id(u32) timestamp(u64) data(u8[8])
+      else if(cObjType===86&&payS>=24){
+        var ch86=cdv.getUint16(payP,true)+1;
+        var dlc86=cd[payP+3];
+        var canId86=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
+        var d86=[];
+        var maxD86=Math.min(dlc86,8,payS-20);
+        for(var k86=0;k86<maxD86;k86++)d86.push(cd[payP+20+k86]);
+        msgs.push({ts:ts,ch:ch86,id:canId86,idH:hex(d2c(canId86)),dlc:dlc86,data:d86});
+        foundInChunk++;
+      }
+      // CAN_FD_MESSAGE (type 100): ch(u16) flags(u8) dlc(u8) id(u32) tx(u8) valid(u8) fd_flags(u8) stuff(u8) data(...)
       else if(cObjType===100&&payS>=24){
         var ch2=cdv.getUint16(payP,true)+1;
         var canId2=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
-        var validB=cd[payP+11]; // valid payload bytes
+        var validB=cd[payP+11];
         var fdDlc=dlc2len(cd[payP+3]);
         var d2=[];
         var maxFD=Math.min(validB,64,payS-16);
