@@ -1167,19 +1167,20 @@ function pBLF(buf){
       if(payP<0||payP+payS>cl)payS=cl-payP;
 
       // CAN_MESSAGE type=1 or CAN_MESSAGE2 type=86
-      // BLF payload: channel(u16) flags(u8) dlc(u8) can_id(u32) reserved(u32) data(u8[8])
-      // Data starts at offset 16 (NOT 12 — there's a 4-byte reserved field after can_id)
-      if((cObjType===1||cObjType===86)&&payS>=16){
+      // BLF payload: channel(u16) flags(u8) dlc(u8) can_id(u32) data(u8[])
+      // Offsets from payP: ch=0, flags=2, dlc=3, id=4, data=8 (NO reserved field!)
+      if((cObjType===1||cObjType===86)&&payS>=12){
         var ch=cdv.getUint16(payP,true)+1;
         var dlc=cd[payP+3];
         var canId=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
         var d=[];
         var bytesToRead=Math.min(dlc>0?dlc:8,8);
         for(var k=0;k<bytesToRead;k++){
-          if(payP+16+k<cl)d.push(cd[payP+16+k]);
+          if(payP+8+k<cl)d.push(cd[payP+8+k]);
         }
-        if(msgs.length<3){
-          console.log("[BLF] MSG#"+msgs.length+" type="+cObjType+" ch="+ch+" id=0x"+canId.toString(16)+" dlc="+dlc+" data=["+d.map(function(b){return(b<16?'0':'')+b.toString(16)}).join(',')+"] objSize="+cObjSize);
+        if(msgs.length<5){
+          var payHex='';for(var ph=0;ph<Math.min(payS,24);ph++)payHex+=(cd[payP+ph]<16?'0':'')+cd[payP+ph].toString(16)+' ';
+          console.log("[BLF] MSG#"+msgs.length+" id=0x"+canId.toString(16)+" dlc="+dlc+" data=["+d.map(function(b){return(b<16?'0':'')+b.toString(16)}).join(',')+"] payload=["+payHex.trim()+"]");
         }
         msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
         foundInChunk++;
