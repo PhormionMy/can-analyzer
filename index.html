@@ -2237,6 +2237,7 @@ function mChart(ax,sigs,yMn,yMx){
                 else{C.c2=t;C.selectedCursor='c2'}
               }
               updateCursorInfo(sub);uCur();
+              rAll();
             }
           }
         }
@@ -2278,12 +2279,13 @@ function mChart(ax,sigs,yMn,yMx){
     updateCursorInfo(sub);
     
     uCur();
+    rAll();
   });
   
   pOverlay.addEventListener('contextmenu',function(e){
     e.preventDefault();
     C.c1=null;C.c2=null;C.hov=null;C.selectedCursor=null;
-    updateCursorInfo(sub);uCur();
+    updateCursorInfo(sub);uCur();rAll();
   });
 
   // 双击 → 适应全部
@@ -2386,10 +2388,15 @@ function chartPointerDown(cx,cy,sub){
 
 function chartPointerMove(cx,sub){
   if(C.dr||C.curDrag)return;
+  if(_hoverRAF)return;
   var rect=sub.svg.getBoundingClientRect(),mx=cx-rect.left;
-  if(mx<sub.mg.l||mx>sub.mg.l+sub.pw){C.hov=null;uCur();return}
-  if(isNearAnyCur(sub,mx)){C.hov=null;uCur();return}
-  C.hov=timeAtX(sub,mx);uCur();
+  var newHov;
+  if(mx<sub.mg.l||mx>sub.mg.l+sub.pw){newHov=null}
+  else if(isNearAnyCur(sub,mx)){newHov=null}
+  else{newHov=timeAtX(sub,mx)}
+  if(newHov===C.hov)return;
+  C.hov=newHov;
+  _hoverRAF=requestAnimationFrame(function(){_hoverRAF=null;uCur()});
 }
 
 function startDrag(){
@@ -2419,6 +2426,7 @@ function dragCur(cx){
     }
   }
   uCur();
+  if(!_hoverRAF){_hoverRAF=requestAnimationFrame(function(){_hoverRAF=null;rAll()})}
 }
 
 function onPD(e){panDrag(e.clientX,e.clientY)}
@@ -2429,6 +2437,7 @@ function onPU(){
 }
 
 var _panRAF=null;
+var _hoverRAF=null;
 function panDrag(cx,cy){
   if(!C.dr)return;
   if(Math.abs(cx-C._movedX)>3||Math.abs(cy-C._movedY)>3)C._moved=true;
@@ -2641,7 +2650,7 @@ function rAll(){for(var i=0;i<C.subs.length;i++){if(C.subs[i].el.style.display==
 function uCur(){
   var el=$('tooltip');
   // 非波形页面直接隐藏tooltip
-  if(currentPage!=='chart'||C.cm===0){el.style.display='none';if(currentPage==='chart')rAll();return}
+  if(currentPage!=='chart'||C.cm===0){el.style.display='none';return}
 
   var aS=[];
   for(var i=0;i<C.subs.length;i++){
@@ -2649,17 +2658,17 @@ function uCur(){
       if(C.subs[i].sigs[j].visible)aS.push(C.subs[i].sigs[j]);
     }
   }
-  if(!aS.length){el.style.display='none';rAll();return}
+  if(!aS.length){el.style.display='none';return}
 
   var t=null;
   if(C.curDrag)t=C.curDrag==='c1'?C.c1:C.c2;
   else if(C.selectedCursor)t=C.selectedCursor==='c1'?C.c1:C.c2;
   else if(C.cm===1)t=C.c1;
   else if(C.cm===2){
-    if(C.c1===null&&C.c2===null){el.style.display='none';rAll();return}
+    if(C.c1===null&&C.c2===null){el.style.display='none';return}
   }
-  if(C.cm===1&&t===null){el.style.display='none';rAll();return}
-  if(C.cm===2&&C.c1===null&&C.c2===null){el.style.display='none';rAll();return}
+  if(C.cm===1&&t===null){el.style.display='none';return}
+  if(C.cm===2&&C.c1===null&&C.c2===null){el.style.display='none';return}
 
   var h='';
   if(C.curDrag||C.selectedCursor){
@@ -2717,7 +2726,6 @@ function uCur(){
   if(t2+el.offsetHeight>innerHeight-8)t2=innerHeight-el.offsetHeight-8;
   if(t2<8)t2=8;
   el.style.left=l2+'px';el.style.top=t2+'px';
-  rAll();
 }
 
 document.addEventListener('mousemove',function(e){window._mx=e.clientX;window._my=e.clientY});
