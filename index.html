@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.7 2026-04-10 09:51</title>
+<title>CAN分析工具 v4.8 2026-04-10 10:15</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.7 04-10 09:51</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.8 04-10 10:15</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -1041,6 +1041,7 @@ function pASC(c){
   return msgs;
 }
 
+// BLF binary parser — reads Vector BLF and returns CAN message array
 function pBLF(buf){
   var dv=new DataView(buf),u8=new Uint8Array(buf),len=buf.byteLength;
   console.log("[BLF] file size:",len);
@@ -1050,45 +1051,63 @@ function pBLF(buf){
   if(sig!=="LOGG"){console.log("[BLF] not LOGG");return[]}
   var fileHdrSize=dv.getUint32(4,true);
   console.log("[BLF] file header size:",fileHdrSize);
-  var off=fileHdrSize;
-  var chunks=[],containerCount=0;
+  if(fileHdrSize<16||fileHdrSize>len){console.log("[BLF] bad header size");return[]}
 
-  // Step 1: scan top-level for LOG_CONTAINER objects
+  var chunks=[],containerCount=0;
+  var off=fileHdrSize;
+
+  // Step 1: parse top-level objects (containers + direct CAN messages)
   while(off+16<=len){
-    var found=false,scanOff=off;
-    while(scanOff+4<=len){
-      if(u8[scanOff]===0x4C&&u8[scanOff+1]===0x4F&&u8[scanOff+2]===0x42&&u8[scanOff+3]===0x4A){found=true;off=scanOff;break}
-      scanOff++;
+    // Validate LOBJ signature
+    if(!(u8[off]===0x4C&&u8[off+1]===0x4F&&u8[off+2]===0x42&&u8[off+3]===0x4A)){
+      // Scan forward for next LOBJ
+      var found=false;
+      while(off+4<=len){
+        if(u8[off]===0x4C&&u8[off+1]===0x4F&&u8[off+2]===0x42&&u8[off+3]===0x4A){found=true;break}
+        off++;
+      }
+      if(!found)break;
     }
-    if(!found)break;
     if(off+16>len)break;
+
+    var hdrSize=dv.getUint16(off+4,true);
+    var hdrVer=dv.getUint16(off+6,true);
     var objSize=dv.getUint32(off+8,true);
     var objType=dv.getUint32(off+12,true);
-    console.log("[BLF] top obj type="+objType+" size="+objSize+" at offset="+off);
-    if(objSize<16){off+=4;continue}
+
+    if(objSize<16||objSize>len-off){console.log("[BLF] bad objSize="+objSize+" at off="+off+", skipping");off+=4;continue}
+    if(hdrSize<16||hdrSize>objSize){console.log("[BLF] bad hdrSize="+hdrSize+" at off="+off);off+=objSize;continue}
+
+    // LOG_CONTAINER (type 10)
     if(objType===10){
-      var cOff=off+16;
-      if(cOff+12<=len){
-        var method=dv.getUint16(cOff,true);
-        var uncompSize=dv.getUint32(cOff+4,true);
-        var cDataLen=objSize-28;
-        var cData=u8.slice(cOff+12,off+objSize);
-        console.log("[BLF] container method="+method+" uncompSize="+uncompSize+" dataLen="+cDataLen);
-        if(method===0){
-          chunks.push(cData);containerCount++;
-        }else if(method===2){
-          try{
-            var d=pako.inflateRaw(cData);
-            console.log("[BLF] inflateRaw OK, decompressed:",d.length,"bytes");
-            chunks.push(d);containerCount++;
-          }catch(e1){
-            console.log("[BLF] inflateRaw failed:",e1.message);
+      var cPayOff=off+16; // payload starts after 16-byte object header
+      if(cPayOff+16<=len){
+        var method=dv.getUint16(cPayOff,true);       // bytes 0-1: compression method
+        // bytes 2-3: reserved
+        // bytes 4-7: reserved (upper bytes of 8-byte reserved field)
+        var uncompSize=dv.getUint32(cPayOff+8,true);  // bytes 8-11: uncompressed file size (lower 4 bytes)
+        // bytes 12-15: reserved
+        var compDataOff=cPayOff+16;                    // compressed data starts at byte 16 of payload
+        var compDataLen=objSize-16-16;                 // objSize - objectHdr(16) - containerPayHdr(16)
+        if(compDataLen>0&&compDataOff+compDataLen<=len){
+          var cData=u8.slice(compDataOff,compDataOff+compDataLen);
+          console.log("[BLF] container method="+method+" uncompSize="+uncompSize+" compLen="+compDataLen);
+          if(method===0){
+            chunks.push(cData);containerCount++;
+          }else if(method===2||method===1){
             try{
-              var d2=pako.inflate(cData);
-              console.log("[BLF] inflate OK, decompressed:",d2.length,"bytes");
-              chunks.push(d2);containerCount++;
-            }catch(e2){
-              console.log("[BLF] inflate also failed:",e2.message);
+              var d=pako.inflateRaw(cData);
+              console.log("[BLF] inflateRaw OK, decompressed:",d.length,"bytes");
+              chunks.push(d);containerCount++;
+            }catch(e1){
+              console.log("[BLF] inflateRaw failed:",e1.message);
+              try{
+                var d2=pako.inflate(cData);
+                console.log("[BLF] inflate OK, decompressed:",d2.length,"bytes");
+                chunks.push(d2);containerCount++;
+              }catch(e2){
+                console.log("[BLF] inflate also failed:",e2.message);
+              }
             }
           }
         }
@@ -1098,79 +1117,90 @@ function pBLF(buf){
   }
   console.log("[BLF] containers found:",containerCount,"chunks:",chunks.length);
 
-  var msgs=[];
-
-  // Step 2: if no containers found, try scanning file directly for CAN objects
+  // Fallback: if no containers found, try scanning the whole file for CAN objects directly
   if(chunks.length===0){
-    console.log("[BLF] no containers, trying direct scan");
+    console.log("[BLF] no containers found, scanning file directly");
     chunks.push(u8);
   }
 
-  // Step 3: parse CAN messages from all chunks
+  // Step 2: parse CAN messages from decompressed chunks
+  var msgs=[];
   for(var ci=0;ci<chunks.length;ci++){
     var cd=chunks[ci],cl=cd.length;
-    console.log("[BLF] parsing chunk "+ci+", size="+cl);
     var cdv=new DataView(cd.buffer,cd.byteOffset,cl);
     var p=0,foundInChunk=0;
+
     while(p+16<=cl){
-      var f=false,s=p;
-      while(s+4<=cl){
-        if(cd[s]===0x4C&&cd[s+1]===0x4F&&cd[s+2]===0x42&&cd[s+3]===0x4A){f=true;p=s;break}
-        s++;
+      // Find next LOBJ signature
+      if(!(cd[p]===0x4C&&cd[p+1]===0x4F&&cd[p+2]===0x42&&cd[p+3]===0x4A)){
+        var sf=false;
+        while(p+4<=cl){
+          if(cd[p]===0x4C&&cd[p+1]===0x4F&&cd[p+2]===0x42&&cd[p+3]===0x4A){sf=true;break}
+          p++;
+        }
+        if(!sf)break;
       }
-      if(!f)break;
       if(p+16>cl)break;
+
       var cHdrSize=cdv.getUint16(p+4,true);
       var cHdrVer=cdv.getUint16(p+6,true);
       var cObjSize=cdv.getUint32(p+8,true);
       var cObjType=cdv.getUint32(p+12,true);
-      if(cObjSize<16){p+=4;continue}
-      var nextP=p+cObjSize;if(nextP>cl)break;
-      // Timestamp
+
+      if(cObjSize<16||cObjSize>cl-p){p+=4;continue}
+
+      // Extract timestamp (bytes 24-31 of object header, if header is large enough)
       var ts=0;
-      if(cHdrVer<=2&&cHdrSize>=32&&p+32<=cl){
+      if(cHdrSize>=32&&p+32<=cl){
         var tsLo=cdv.getUint32(p+24,true);
         var tsHi=cdv.getUint32(p+28,true);
-        var factor=1e-5;
-        if(cHdrVer===2){
+        var factor=1e-5; // default: 100ns units
+        if(cHdrVer>=2&&p+20<=cl){
           var tsFlags=cdv.getUint32(p+16,true);
-          factor=(tsFlags===2)?1e-9:1e-5;
+          if(tsFlags&2)factor=1e-9; // bit 1 set = 1ns units
         }
         ts=(tsHi*4294967296+tsLo)*factor;
       }
+
       var payP=p+cHdrSize,payS=cObjSize-cHdrSize;
-      if(payP+payS>cl)payS=cl-payP;
-      // CAN_MESSAGE type=1 or CAN_MESSAGE2 type=86
-      // struct <HBBL8s>: ch(u16) flags(u8) dlc(u8) id(u32) data(8)
-      if((cObjType===1||cObjType===86)&&payS>=14){
-        var ch=cdv.getUint16(payP,true)+1;
+      if(payP<0||payP+payS>cl)payS=cl-payP;
+
+      // CAN_MESSAGE (type 1) / CAN_MESSAGE2 (type 86, TX variant)
+      // Payload: channel(u16) flags(u8) dlc(u8) can_id(u32) data(u8[8])
+      if((cObjType===1||cObjType===86)&&payS>=16){
+        var ch=cdv.getUint16(payP,true)+1; // BLF channels are 0-based, ASC uses 1-based
         var dlc=cd[payP+3];
         var canId=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
         var d=[];
-        for(var k=0;k<dlc&&k<8&&payP+12+k<cl;k++)d.push(cd[payP+12+k]);
+        var maxD=Math.min(dlc,8,payS-12);
+        for(var k=0;k<maxD;k++)d.push(cd[payP+12+k]);
         msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
         foundInChunk++;
       }
-      // CAN_FD_MESSAGE type=100
+      // CAN_FD_MESSAGE (type 100)
+      // Payload: channel(u16) flags(u8) dlc(u8) reserved(u3) tx_flags(u8) can_id(u32) data(...)
       else if(cObjType===100&&payS>=24){
         var ch2=cdv.getUint16(payP,true)+1;
         var canId2=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
-        var validB=cd[payP+11];
+        var validB=cd[payP+11]; // valid payload bytes
         var fdDlc=dlc2len(cd[payP+3]);
         var d2=[];
-        for(var m=0;m<validB&&m<64&&payP+16+m<cl;m++)d2.push(cd[payP+16+m]);
+        var maxFD=Math.min(validB,64,payS-16);
+        for(var m=0;m<maxFD;m++)d2.push(cd[payP+16+m]);
         msgs.push({ts:ts,ch:ch2,id:canId2,idH:hex(d2c(canId2)),dlc:fdDlc,data:d2});
         foundInChunk++;
       }
-      p=nextP;
+      p+=cObjSize;
     }
     console.log("[BLF] chunk "+ci+": found "+foundInChunk+" CAN messages");
   }
 
   console.log("[BLF] total messages:",msgs.length);
+  // Sort by timestamp and normalize to start at 0
   msgs.sort(function(a,b){return a.ts-b.ts});
   if(msgs.length>0&&msgs[0].ts>100){
-    var base=msgs[0].ts;for(var n=0;n<msgs.length;n++)msgs[n].ts-=base;
+    var base=msgs[0].ts;
+    for(var n=0;n<msgs.length;n++)msgs[n].ts-=base;
   }
   return msgs;
 }
