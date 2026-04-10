@@ -1173,13 +1173,18 @@ function pBLF(buf){
         var dlc=cd[payP+3];
         var canId=cdv.getUint32(payP+4,true)&0x1FFFFFFF;
         var d=[];
-        // Read exactly dlc bytes of data, up to 8 (standard CAN max)
-        var bytesToRead=Math.min(dlc,8,cl-(payP+12));
-        for(var k=0;k<bytesToRead;k++)d.push(cd[payP+12+k]);
-        if(d.length>0||dlc===0){
-          msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
-          foundInChunk++;
+        // Read data bytes: start at payP+12, read dlc bytes (max 8 for standard CAN)
+        var bytesToRead=Math.min(dlc>0?dlc:8,8);
+        for(var k=0;k<bytesToRead;k++){
+          if(payP+12+k<cl)d.push(cd[payP+12+k]);
         }
+        // Debug: log first 3 messages with full byte dump
+        if(msgs.length<3){
+          var objHex='';for(var di2=0;di2<Math.min(cObjSize,48);di2++)objHex+=(cd[p+di2]<16?'0':'')+cd[p+di2].toString(16)+' ';
+          console.log("[BLF] MSG#"+msgs.length+" type="+cObjType+" ch="+ch+" id=0x"+canId.toString(16)+" dlc="+dlc+" data=["+d.map(function(b){return(b<16?'0':'')+b.toString(16)}).join(',')+"] hdrSize="+cHdrSize+" objSize="+cObjSize+" payP="+payP+" payS="+payS);
+        }
+        msgs.push({ts:ts,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:d});
+        foundInChunk++;
       }
       // CAN_FD_MESSAGE type=100
       else if(cObjType===100&&payS>=16){
