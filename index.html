@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.1 2026-04-09 11:26</title>
+<title>CAN分析工具 v4.2 2026-04-10 09:23</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 /* 深色模式下的选择颜色 */
 ::selection{background:#00d4ff44;color:#fff}
 </style>
-</head>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script></head>
 <body>
 <div class="header">
   <div class="header-bar">
@@ -1043,15 +1043,142 @@ function pASC(c){
 
 function pBLF(buf){
   var dv=new DataView(buf),u8=new Uint8Array(buf),len=buf.byteLength;
-  if(len<16)return [];
+  if(len<16)return[];
   var sig="";for(var i=0;i<4;i++)sig+=String.fromCharCode(u8[i]);
-  if(sig!=="LOGG"&&sig!=="LOBJ")return [];
-  var msgs=[],off=0;
-  if(sig==="LOGG"){
-    var hdrSize=dv.getUint32(4,true);
-    if(hdrSize<16||hdrSize>256)hdrSize=144;
-    off=hdrSize;
+  if(sig!=="LOGG")return[];
+  // Parse file header
+  var fileHdrSize=dv.getUint32(4,true);
+  var fileUnk1=dv.getUint32(8,true);
+  var appID=dv.getUint32(12,true);
+  var fileCompressionLevel=0;
+  if(fileHdrSize>=144){
+    // compression level at offset 72 in v3+ headers
+    if(fileHdrSize>76)fileCompressionLevel=dv.getUint8(72);
   }
+  var off=fileHdrSize;
+  var msgs=[];
+  var t0=-1;
+  while(off+32<=len){
+    // Find next LOBJ
+    var found=false;
+    while(off+4<=len){
+      if(u8[off]===0x4C&&u8[off+1]===0x4F&&u8[off+2]===0x42&&u8[off+3]===0x4A){found=true;break}
+      off++;
+    }
+    if(!found)break;
+    if(off+32>len)break;
+    // ObjectHeaderBase: signature(4) headerSize(u16) headerVersion(u16) objSize(u32)
+    // then: objType(u16) flags(u32) reserved(u16) timestamp(3xu32)
+    var hdrSize=dv.getUint16(off+4,true);
+    var hdrVer=dv.getUint16(off+6,true);
+    var objSize=dv.getUint32(off+8,true);
+    var objType=dv.getUint16(off+12,true);
+    var objFlags=dv.getUint32(off+16,true);
+    // Timestamp: u64 at offset 24 (for v3 hdrSize=32)
+    // or v1/v2 with different offsets
+    var tsLo,tsHi;
+    if(hdrSize>=32){
+      tsLo=dv.getUint32(off+24,true);
+      tsHi=dv.getUint32(off+28,true);
+    }else if(hdrSize>=24){
+      tsLo=dv.getUint32(off+16,true);
+      tsHi=dv.getUint32(off+20,true);
+    }else{
+      tsLo=0;tsHi=0;
+    }
+    var timestamp=(tsHi*4294967296+tsLo)/1e9;
+    if(objSize<4||objSize>50*1048576)break;
+    // Payload starts after header
+    var payOff=off+hdrSize;
+    var paySize=objSize-hdrSize;
+    if(payOff+paySize>len)paySize=len-payOff;
+    if(paySize<=0){off+=objSize;continue}
+    // Handle compressed objects (flag bit 1)
+    var rawPay;
+    if((objFlags&2)!==0&&paySize>=2){
+      try{
+        if(typeof pako!=='undefined'){
+          var cdata=u8.slice(payOff,payOff+paySize);
+          rawPay=pako.inflateRaw(cdata);
+        }else{
+          off+=objSize;continue;
+        }
+      }catch(e){off+=objSize;continue}
+    }else{
+      rawPay=u8.slice(payOff,payOff+paySize);
+    }
+    var pdv=new DataView(rawPay.buffer,rawPay.byteOffset,rawPay.byteLength);
+    // CAN message (type 1)
+    if(objType===1&&rawPay.length>=12){
+      var ch=pdv.getUint16(0,true)+1;
+      var canFlags=pdv.getUint16(2,true);
+      var dlc=pdv.getUint8(6);
+      var canId=pdv.getUint32(8,true);
+      var ext=(canFlags&0x8000)!==0;
+      if(!ext)canId=canId&0x7FF;
+      var data=[];
+      for(var k=0;k<dlc&&12+k<rawPay.length;k++)data.push(rawPay[12+k]);
+      if(t0<0)t0=timestamp;
+      msgs.push({ts:timestamp,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:data});
+    }
+    // CAN FD message (type 10)
+    else if(objType===10&&rawPay.length>=16){
+      var ch2=pdv.getUint16(0,true)+1;
+      var canFlags2=pdv.getUint16(2,true);
+      var dlc2=pdv.getUint8(6);
+      var canId2=pdv.getUint32(8,true);
+      var ext2=(canFlags2&0x8000)!==0;
+      if(!ext2)canId2=canId2&0x7FF;
+      var fdDlc=rawPay[15]||dlc2;
+      var dataLen=dlcFromFd(fdDlc);
+      var data2=[];
+      for(var m=0;m<dataLen&&16+m<rawPay.length;m++)data2.push(rawPay[16+m]);
+      if(t0<0)t0=timestamp;
+      msgs.push({ts:timestamp,ch:ch2,id:canId2,idH:hex(d2c(canId2)),dlc:dataLen,data:data2});
+    }
+    off+=objSize;
+  }
+  msgs.sort(function(a,b){return a.ts-b.ts});
+  // Convert to relative timestamps
+  if(msgs.length>0&&msgs[0].ts>100){
+    var base=msgs[0].ts;
+    for(var n=0;n<msgs.length;n++)msgs[n].ts=msgs[n].ts-base;
+  }
+  return msgs;
+}
+function dlcFromFd(d){var t=[0,1,2,3,4,5,6,7,8,12,16,20,24,32,48,64];return d<16?t[d]:64}
+function blfToAsc(msgs){
+  if(!msgs||!msgs.length)return'';
+  var now=new Date();
+  var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dateStr=days[now.getDay()]+' '+months[now.getMonth()]+' '+
+    String(now.getDate()).padStart(2,' ')+' '+
+    String(now.getHours()).padStart(2,'0')+':'+
+    String(now.getMinutes()).padStart(2,'0')+':'+
+    String(now.getSeconds()).padStart(2,'0')+'.000 '+
+    now.getFullYear();
+  var lines=[];
+  lines.push('date '+dateStr);
+  lines.push('base hex timestamps absolute');
+  lines.push('internal events logged');
+  lines.push('');
+  lines.push('// version 14.0.0');
+  lines.push('');
+  for(var i=0;i<msgs.length;i++){
+    var m=msgs[i];
+    var ts=m.ts.toFixed(6);
+    var idStr=m.idH.toUpperCase();
+    if(m.id>0x7FF)idStr+='x';
+    var dataStr='';
+    for(var j=0;j<m.dlc;j++){
+      dataStr+=(j?' ':'')+((m.data[j]||0).toString(16).toUpperCase().padStart(2,'0'));
+    }
+    lines.push(ts+' '+m.ch+'  '+idStr+'             Rx   d '+m.dlc+' '+dataStr);
+  }
+  return lines.join('\n');
+}
+
   while(off+32<=len){
     var osig="";for(var j=0;j<4;j++)osig+=String.fromCharCode(u8[off+j]);
     if(osig!=="LOBJ"){off++;continue}
@@ -1171,7 +1298,7 @@ $('goBtn').addEventListener('click',async function(){
     var dc='';
     for(var d=0;d<S.dF.length;d++)dc+=await rd(S.dF[d].f);
     pDBC(dc);
-    for(var a=0;a<S.aF.length;a++){var fn=S.aF[a].n.toLowerCase();if(fn.endsWith(".blf")){var bb=await rdBin(S.aF[a].f);S.msgs=S.msgs.concat(pBLF(bb))}else{var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}}
+    for(var a=0;a<S.aF.length;a++){var fn=S.aF[a].n.toLowerCase();if(fn.endsWith(".blf")){var bb=await rdBin(S.aF[a].f);var blfMsgs=pBLF(bb);console.log("BLF parsed:",blfMsgs.length,"messages");var ascText=blfToAsc(blfMsgs);S.msgs=S.msgs.concat(pASC(ascText))}else{var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}}
     S.msgs.sort(function(a,b){return a.ts-b.ts});
     var cs={};
     for(var i=0;i<S.msgs.length;i++)cs[S.msgs[i].ch]=1;
