@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v4.4 2026-04-10 09:29</title>
+<title>CAN分析工具 v4.5 2026-04-10 09:36</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.4 04-10 09:29</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400">v4.5 04-10 09:36</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -1043,110 +1043,158 @@ function pASC(c){
 
 function pBLF(buf){
   var dv=new DataView(buf),u8=new Uint8Array(buf),len=buf.byteLength;
-  if(len<16)return[];
+  if(len<144)return[];
+  // Check file header "LOGG"
   var sig="";for(var i=0;i<4;i++)sig+=String.fromCharCode(u8[i]);
   if(sig!=="LOGG")return[];
-  // Parse file header
   var fileHdrSize=dv.getUint32(4,true);
-  var fileUnk1=dv.getUint32(8,true);
-  var appID=dv.getUint32(12,true);
-  var fileCompressionLevel=0;
-  if(fileHdrSize>=144){
-    // compression level at offset 72 in v3+ headers
-    if(fileHdrSize>76)fileCompressionLevel=dv.getUint8(72);
-  }
   var off=fileHdrSize;
-  var msgs=[];
-  var t0=-1;
-  while(off+32<=len){
-    // Find next LOBJ
+  var msgs=[],tail=new Uint8Array(0);
+
+  // Decompress containers and collect raw object data
+  var rawChunks=[];
+  while(off+16<=len){
+    // Find "LOBJ"
     var found=false;
     while(off+4<=len){
       if(u8[off]===0x4C&&u8[off+1]===0x4F&&u8[off+2]===0x42&&u8[off+3]===0x4A){found=true;break}
       off++;
     }
     if(!found)break;
-    if(off+32>len)break;
-    // ObjectHeaderBase: signature(4) headerSize(u16) headerVersion(u16) objSize(u32)
-    // then: objType(u16) flags(u32) reserved(u16) timestamp(3xu32)
+    if(off+16>len)break;
+    // OBJ_HEADER_BASE: 4sHHLL (16 bytes)
+    // sig(4), headerSize(u16), headerVersion(u16), objSize(u32), objType(u32)
     var hdrSize=dv.getUint16(off+4,true);
     var hdrVer=dv.getUint16(off+6,true);
     var objSize=dv.getUint32(off+8,true);
-    var objType=dv.getUint16(off+12,true);
-    var objFlags=dv.getUint32(off+16,true);
-    // Timestamp: u64 at offset 24 (for v3 hdrSize=32)
-    // or v1/v2 with different offsets
-    var tsLo,tsHi;
-    if(hdrSize>=32){
-      tsLo=dv.getUint32(off+24,true);
-      tsHi=dv.getUint32(off+28,true);
-    }else if(hdrSize>=24){
-      tsLo=dv.getUint32(off+16,true);
-      tsHi=dv.getUint32(off+20,true);
-    }else{
-      tsLo=0;tsHi=0;
-    }
-    var timestamp=(tsHi*4294967296+tsLo)/1e9;
-    if(objSize<4||objSize>50*1048576)break;
-    // Payload starts after header
-    var payOff=off+hdrSize;
-    var paySize=objSize-hdrSize;
-    if(payOff+paySize>len)paySize=len-payOff;
-    if(paySize<=0){off+=objSize;continue}
-    // Handle compressed objects (flag bit 1)
-    var rawPay;
-    if((objFlags&2)!==0&&paySize>=2){
-      try{
-        if(typeof pako!=='undefined'){
-          var cdata=u8.slice(payOff,payOff+paySize);
-          rawPay=pako.inflateRaw(cdata);
-        }else{
-          off+=objSize;continue;
+    var objType=dv.getUint32(off+12,true);
+    if(objSize<16||objSize>100*1048576)break;
+    var objDataOff=off+16;
+    var objDataSize=objSize-16;
+    if(objDataOff+objDataSize>len)objDataSize=len-objDataOff;
+
+    if(objType===10){
+      // LOG_CONTAINER: method(u16) + reserved(6) + uncompressedSize(u32) + reserved(4) + data
+      if(objDataSize>=12){
+        var method=dv.getUint16(objDataOff,true);
+        var containerData=u8.slice(objDataOff+12,objDataOff+objDataSize);
+        if(method===0){
+          // No compression
+          rawChunks.push(containerData);
+        }else if(method===2&&typeof pako!=='undefined'){
+          // Zlib deflate
+          try{
+            var decompressed=pako.inflateRaw(containerData);
+            rawChunks.push(decompressed);
+          }catch(e){
+            try{
+              var decompressed2=pako.inflate(containerData);
+              rawChunks.push(decompressed2);
+            }catch(e2){}
+          }
         }
-      }catch(e){off+=objSize;continue}
-    }else{
-      rawPay=u8.slice(payOff,payOff+paySize);
-    }
-    var pdv=new DataView(rawPay.buffer,rawPay.byteOffset,rawPay.byteLength);
-    // CAN message (type 1)
-    if(objType===1&&rawPay.length>=12){
-      var ch=pdv.getUint16(0,true)+1;
-      var canFlags=pdv.getUint16(2,true);
-      var dlc=pdv.getUint8(6);
-      var canId=pdv.getUint32(8,true);
-      var ext=(canFlags&0x8000)!==0;
-      if(!ext)canId=canId&0x7FF;
-      var data=[];
-      for(var k=0;k<dlc&&12+k<rawPay.length;k++)data.push(rawPay[12+k]);
-      if(t0<0)t0=timestamp;
-      msgs.push({ts:timestamp,ch:ch,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:data});
-    }
-    // CAN FD message (type 10)
-    else if(objType===10&&rawPay.length>=16){
-      var ch2=pdv.getUint16(0,true)+1;
-      var canFlags2=pdv.getUint16(2,true);
-      var dlc2=pdv.getUint8(6);
-      var canId2=pdv.getUint32(8,true);
-      var ext2=(canFlags2&0x8000)!==0;
-      if(!ext2)canId2=canId2&0x7FF;
-      var fdDlc=rawPay[15]||dlc2;
-      var dataLen=dlcFromFd(fdDlc);
-      var data2=[];
-      for(var m=0;m<dataLen&&16+m<rawPay.length;m++)data2.push(rawPay[16+m]);
-      if(t0<0)t0=timestamp;
-      msgs.push({ts:timestamp,ch:ch2,id:canId2,idH:hex(d2c(canId2)),dlc:dataLen,data:data2});
+      }
     }
     off+=objSize;
   }
+
+  // Parse CAN messages from all container data
+  for(var ci=0;ci<rawChunks.length;ci++){
+    var cd=rawChunks[ci],cl=cd.length;
+    var pos=0,tailBytes=new Uint8Array(0);
+    while(pos+16<=cl){
+      // Find LOBJ inside container
+      var found2=false;
+      while(pos+4<=cl){
+        if(cd[pos]===0x4C&&cd[pos+1]===0x4F&&cd[pos+2]===0x42&&cd[pos+3]===0x4A){found2=true;break}
+        pos++;
+      }
+      if(!found2)break;
+      if(pos+16>cl)break;
+      var cdv=new DataView(cd.buffer,cd.byteOffset+pos,Math.min(16,cl-pos));
+      var cHdrSize=cdv.getUint16(4,true);
+      var cHdrVer=cdv.getUint16(6,true);
+      var cObjSize=cdv.getUint32(8,true);
+      var cObjType=cdv.getUint32(12,true);
+      if(cObjSize<16)break;
+      var nextPos=pos+cObjSize;
+      if(nextPos>cl)break;
+      // Read header timestamp
+      var ts=0;
+      if(cHdrVer===1&&cHdrSize>=32){
+        // V1: flags(u32) + clientIndex(u16) + objVersion(u16) + timestamp(u64)
+        // timestamp at offset 24 from obj start
+        var tsLo=cd.length>pos+28?(new DataView(cd.buffer,cd.byteOffset+pos+24,4)).getUint32(0,true):0;
+        var tsHi=cd.length>pos+32?(new DataView(cd.buffer,cd.byteOffset+pos+28,4)).getUint32(0,true):0;
+        ts=(tsHi*4294967296+tsLo)*1e-5;
+      }else if(cHdrVer===2&&cHdrSize>=32){
+        // V2: flags(u32) + timestampStatus(u8) + reserved(1) + objVersion(u16) + timestamp(u64) + reserved(8)
+        var tsLo2=cd.length>pos+28?(new DataView(cd.buffer,cd.byteOffset+pos+16,4)).getUint32(0,true):0;
+        var tsHi2=cd.length>pos+32?(new DataView(cd.buffer,cd.byteOffset+pos+20,4)).getUint32(0,true):0;
+        ts=(tsHi2*4294967296+tsLo2)*1e-5;
+      }
+      var payOff=pos+cHdrSize;
+      var paySize=cObjSize-cHdrSize;
+      if(payOff+paySize>cl)paySize=cl-payOff;
+
+      // CAN_MESSAGE (type 1) or CAN_MESSAGE2 (type 86)
+      // CAN_MSG_STRUCT: <HBBL8s> = channel(u16) + flags(u8) + dlc(u8) + canId(u32) + data(8 bytes)
+      if((cObjType===1||cObjType===86)&&paySize>=14){
+        var pdv=new DataView(cd.buffer,cd.byteOffset+payOff,paySize);
+        var ch=pdv.getUint16(0,true);
+        var canFlags=pdv.getUint8(2);
+        var dlc=pdv.getUint8(3);
+        var canId=pdv.getUint32(4,true)&0x1FFFFFFF;
+        var data=[];
+        for(var k=0;k<dlc&&k<8&&12+k<paySize;k++)data.push(cd[payOff+12+k]);
+        msgs.push({ts:ts,ch:ch+1,id:canId,idH:hex(d2c(canId)),dlc:dlc,data:data});
+      }
+      // CAN_FD_MESSAGE (type 100)
+      // <HBBLLBBB5x64s> = channel(u16) + flags(u8) + dlc(u8) + canId(u32) + frameLen(u32) + bitCnt(u8) + fdFlags(u8) + validBytes(u8) + reserved(5) + data(64)
+      else if(cObjType===100&&paySize>=24){
+        var pdv2=new DataView(cd.buffer,cd.byteOffset+payOff,paySize);
+        var ch2=pdv2.getUint16(0,true);
+        var canId2=pdv2.getUint32(4,true)&0x1FFFFFFF;
+        var fdFlags=pdv2.getUint8(10);
+        var validBytes=pdv2.getUint8(11);
+        var dlc2=dlc2len(cd[payOff+3]);
+        var data2=[];
+        for(var m=0;m<validBytes&&m<64&&16+m<paySize;m++)data2.push(cd[payOff+16+m]);
+        msgs.push({ts:ts,ch:ch2+1,id:canId2,idH:hex(d2c(canId2)),dlc:dlc2,data:data2});
+      }
+      // CAN_FD_MESSAGE_64 (type 101)
+      // <BBBBLLLLLLLHBBL> = channel(u8) + len(u8) + flags(u8) + ecc(u8) + position(u32) + dlc(u32) + frameLen(u32) + msgCycleCount(u64) + canId(u32) + fdFlags(u32) + ...
+      else if(cObjType===101&&paySize>=36){
+        var pdv3=new DataView(cd.buffer,cd.byteOffset+payOff,paySize);
+        var ch3=cd[payOff];
+        var dlc3=dlc2len(cd[payOff+4]||0);
+        var canId3=pdv3.getUint32(24,true)&0x1FFFFFFF;
+        var validBytes3=cd[payOff+1]||dlc3;
+        var data3=[];
+        var dataOff=36;
+        for(var n=0;n<validBytes3&&n<64&&dataOff+n<paySize;n++)data3.push(cd[payOff+dataOff+n]);
+        msgs.push({ts:ts,ch:ch3+1,id:canId3,idH:hex(d2c(canId3)),dlc:dlc3,data:data3});
+      }
+      pos=nextPos;
+    }
+  }
+
   msgs.sort(function(a,b){return a.ts-b.ts});
   // Convert to relative timestamps
-  if(msgs.length>0&&msgs[0].ts>100){
+  if(msgs.length>0){
     var base=msgs[0].ts;
-    for(var n=0;n<msgs.length;n++)msgs[n].ts=msgs[n].ts-base;
+    if(base>100){
+      for(var n=0;n<msgs.length;n++)msgs[n].ts-=base;
+    }
   }
   return msgs;
 }
-function dlcFromFd(d){var t=[0,1,2,3,4,5,6,7,8,12,16,20,24,32,48,64];return d<16?t[d]:64}
+
+function dlc2len(d){
+  var t=[0,1,2,3,4,5,6,7,8,12,16,20,24,32,48,64];
+  return d<16?t[d]:64;
+}
+
 function blfToAsc(msgs){
   if(!msgs||!msgs.length)return'';
   var now=new Date();
