@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v6.0 2026-04-10 17:14</title>
+<title>CAN分析工具 v6.1 2026-04-11 17:01</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -50,7 +50,7 @@ body{display:flex;flex-direction:column}
 .ax-chip .ax-toggle{width:16px;height:16px;border-radius:4px;border:none;background:transparent;color:#888;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:2px;opacity:0.7}
 .ax-chip .ax-toggle:active{opacity:1}
 .ax-chip .ax-toggle.hidden{color:#555}
-.chart-area{flex:1;overflow:hidden;overflow-y:auto;background:#0a0a0a;-webkit-overflow-scrolling:touch;-webkit-user-select:none;user-select:none;overscroll-behavior-y:contain;touch-action:none}
+.chart-area{flex:1;overflow-y:auto;overflow-x:hidden;background:#0a0a0a;-webkit-overflow-scrolling:touch;-webkit-user-select:none;user-select:none;overscroll-behavior-y:contain;touch-action:pan-y}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:0;transition:opacity .25s}
 .drawer-overlay.show{display:block;opacity:1}
 .drawer{position:fixed;top:0;left:0;bottom:0;width:min(85vw,340px);background:#111218;z-index:101;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;padding-top:var(--safe-top);box-shadow:4px 0 20px rgba(0,0,0,0.5);-webkit-overflow-scrolling:touch}
@@ -620,8 +620,8 @@ var CURSOR_NEAR_THRESHOLD=20; // 光标吸附阈值(px)
 
 // ====== Build Version ======
 // BUILD_HASH 和 BUILD_TIME 由 git hook 自动替换，勿手动修改
-var BUILD_HASH = 'v6.0';
-var BUILD_TIME = '04-10 17:14';
+var BUILD_HASH = 'v6.1';
+var BUILD_TIME = '04-11 17:01';
 (function(){
   var el=document.getElementById('verTag');
   if(el) el.textContent=BUILD_HASH+' '+BUILD_TIME;
@@ -4108,7 +4108,7 @@ $('aiWaveBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v6.0 2026-04-10 17:14 波形交互性能优化");
+console.log("CAN分析工具 v6.1 2026-04-11 17:01 修复手机多坐标轴滚动问题");
 })();
 </script>
 </body>
