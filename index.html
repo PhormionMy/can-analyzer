@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v6.1 2026-04-11 17:01</title>
+<title>CAN分析工具 v6.2 2026-04-11 17:29</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -617,11 +617,12 @@ var AC=['#00d4ff','#ffd700','#ff6b9d','#00ff88','#c084fc','#fb923c','#f87171','#
 var CC=['#00d4ff','#ff6b9d','#00ff88','#ffd700','#c084fc','#fb923c','#f87171','#60a5fa','#2dd4bf','#a3e635'];
 var NS='http://www.w3.org/2000/svg';
 var CURSOR_NEAR_THRESHOLD=20; // 光标吸附阈值(px)
+var CURSOR_TOUCH_THRESHOLD=32; // 触摸模式光标热区(px)
 
 // ====== Build Version ======
 // BUILD_HASH 和 BUILD_TIME 由 git hook 自动替换，勿手动修改
-var BUILD_HASH = 'v6.1';
-var BUILD_TIME = '04-11 17:01';
+var BUILD_HASH = 'v6.2';
+var BUILD_TIME = '04-11 17:29';
 (function(){
   var el=document.getElementById('verTag');
   if(el) el.textContent=BUILD_HASH+' '+BUILD_TIME;
@@ -1758,18 +1759,21 @@ function isNearAnyCur(sub,mx){
 }
 
 // 检测触摸位置是否靠近光标
-function detectNearCursor(sub,mx){
+function detectNearCursor(sub,mx,threshold){
   if(C.cm===0)return null;
-  var threshold=CURSOR_NEAR_THRESHOLD;
+  if(threshold===undefined)threshold=CURSOR_NEAR_THRESHOLD;
+  var best=null,bestDist=threshold;
   if(C.c1!==null){
     var c1x=txOf(sub,C.c1);
-    if(Math.abs(c1x-mx)<threshold)return 'c1';
+    var d1=Math.abs(c1x-mx);
+    if(d1<bestDist){best='c1';bestDist=d1}
   }
   if(C.cm===2&&C.c2!==null){
     var c2x=txOf(sub,C.c2);
-    if(Math.abs(c2x-mx)<threshold)return 'c2';
+    var d2=Math.abs(c2x-mx);
+    if(d2<bestDist){best='c2';bestDist=d2}
   }
-  return null;
+  return best;
 }
 
 // 拖动监听器清理（防止重建/切换页面后残留）
@@ -2089,15 +2093,17 @@ function mChart(ax,sigs,yMn,yMx){
       C.momentum.vx=0;C.momentum.vy=0;
       C.momentum.lastX=touch.clientX;C.momentum.lastY=touch.clientY;C.momentum.lastT=performance.now();
 
-      // 检测是否靠近光标 → 直接进入拖动模式
+      // 检测是否靠近光标 → 直接进入拖动模式（触摸使用更大热区）
       if(C.cm!==0){
-        var nearCursor=detectNearCursor(sub,mx);
+        var nearCursor=detectNearCursor(sub,mx,CURSOR_TOUCH_THRESHOLD);
         if(nearCursor){
           e.preventDefault(); // 光标拖动需要阻止滚动
           C.selectedCursor=nearCursor;
           C.touchState.mode='cursor';
           C.curDrag=nearCursor;
           updateCursorInfo(sub);
+          uCur(); // 立即刷新光标高亮状态
+          rAll(); // 立即重绘，显示光标拖动加粗效果
           
           return;
         }
@@ -2153,6 +2159,7 @@ function mChart(ax,sigs,yMn,yMx){
         C._moved=true;
         updateCursorInfo(sub);
         uCur();
+        if(!_wheelRAF){_wheelRAF=requestAnimationFrame(function(){_wheelRAF=null;rAll()})}
       } else if(C.touchState.mode==='pending'){
         // 等待方向判断
         if(absDx>8||absDy>8){
@@ -2251,6 +2258,7 @@ function mChart(ax,sigs,yMn,yMx){
       C.touchState.active=false;C.touchState.mode='none';C.curDrag=null;
       endChartPan();
       for(var i=0;i<C.subs.length;i++){delete C.subs[i]._dy0;delete C.subs[i]._dy1}
+      rAll(); // 确保光标拖动结束后恢复普通视觉状态
     }
     C._moved=false;
   });
@@ -4108,7 +4116,7 @@ $('aiWaveBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v6.1 2026-04-11 17:01 修复手机多坐标轴滚动问题");
+console.log("CAN分析工具 v6.2 2026-04-11 17:29 光标触摸拖动体验优化");
 })();
 </script>
 </body>
