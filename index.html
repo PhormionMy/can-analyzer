@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v6.2 2026-04-11 17:29</title>
+<title>CAN分析工具 v6.3 2026-04-11 17:35</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -621,8 +621,8 @@ var CURSOR_TOUCH_THRESHOLD=32; // 触摸模式光标热区(px)
 
 // ====== Build Version ======
 // BUILD_HASH 和 BUILD_TIME 由 git hook 自动替换，勿手动修改
-var BUILD_HASH = 'v6.2';
-var BUILD_TIME = '04-11 17:29';
+var BUILD_HASH = 'v6.3';
+var BUILD_TIME = '04-11 17:35';
 (function(){
   var el=document.getElementById('verTag');
   if(el) el.textContent=BUILD_HASH+' '+BUILD_TIME;
@@ -2157,9 +2157,13 @@ function mChart(ax,sigs,yMn,yMx){
         if(C.curDrag==='c1')C.c1=t;
         else if(C.curDrag==='c2')C.c2=t;
         C._moved=true;
+        // 直接重绘所有图表的光标层，同步执行不走rAF
+        for(var ci=0;ci<C.subs.length;ci++){
+          if(C.subs[ci].el.style.display==='none')continue;
+          dCC(C.subs[ci]);
+        }
         updateCursorInfo(sub);
         uCur();
-        if(!_wheelRAF){_wheelRAF=requestAnimationFrame(function(){_wheelRAF=null;rAll()})}
       } else if(C.touchState.mode==='pending'){
         // 等待方向判断
         if(absDx>8||absDy>8){
@@ -2504,7 +2508,9 @@ function dChart(sub){
     var gx=tx(tv);
     if(isFinite(gx)&&gx>=mg.l&&gx<=mg.l+pw)gh+='<line x1="'+gx+'" y1="'+mg.t+'" x2="'+gx+'" y2="'+(mg.t+ph)+'" stroke="#1a1a1a" stroke-width="0.5"/>';
   }
-  sub.gg.innerHTML=gh;
+  // 安全更新SVG grid组
+  while(sub.gg.firstChild)sub.gg.removeChild(sub.gg.firstChild);
+  if(gh){var _t=document.createElementNS(NS,'g');_t.innerHTML=gh;while(_t.firstChild)sub.gg.appendChild(_t.firstChild)}
 
   // Signal paths
   for(var i=0;i<sub.sigs.length;i++){
@@ -2542,7 +2548,9 @@ function dChart(sub){
       ah+='<text x="'+gx2+'" y="'+(mg.t+ph+11)+'" fill="#666" font-size="6" text-anchor="middle" font-family="-apple-system,sans-serif">'+tv2.toFixed(2)+'</text>';
     }
   }
-  sub.ag.innerHTML=ah;
+  // 安全更新SVG axes组
+  while(sub.ag.firstChild)sub.ag.removeChild(sub.ag.firstChild);
+  if(ah){var _t2=document.createElementNS(NS,'g');_t2.innerHTML=ah;while(_t2.firstChild)sub.ag.appendChild(_t2.firstChild)}
   dLegend(sub);
   dCC(sub);
   updateCursorInfo(sub);
@@ -2630,7 +2638,7 @@ function dCC(sub){
     return d;
   }
 
-  if(C.cm===0){cg.innerHTML='';return}
+  if(C.cm===0){while(cg.firstChild)cg.removeChild(cg.firstChild);return}
 
   var c1Selected=C.selectedCursor==='c1';
   var c2Selected=C.selectedCursor==='c2';
@@ -2650,7 +2658,13 @@ function dCC(sub){
       }
     }
   }
-  cg.innerHTML=h;
+  // 安全的SVG内容更新（兼容移动端浏览器）
+  while(cg.firstChild)cg.removeChild(cg.firstChild);
+  if(h){
+    var tmp=document.createElementNS(NS,'g');
+    tmp.innerHTML=h;
+    while(tmp.firstChild)cg.appendChild(tmp.firstChild);
+  }
 }
 
 function rAll(){for(var i=0;i<C.subs.length;i++){if(C.subs[i].el.style.display==='none')continue;dChart(C.subs[i]);updateCursorInfo(C.subs[i])}}
@@ -4116,7 +4130,7 @@ $('aiWaveBtn').addEventListener('click',function(){
 var origGoBtn=$('goBtn');
 var origClick=origGoBtn.onclick;
 
-console.log("CAN分析工具 v6.2 2026-04-11 17:29 光标触摸拖动体验优化");
+console.log("CAN分析工具 v6.3 2026-04-11 17:35 修复触摸光标线不跟随+SVG兼容性");
 })();
 </script>
 </body>
