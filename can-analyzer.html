@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>CAN分析工具 v7.9</title>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -933,51 +934,79 @@ function pASC(c){
 }
 
 function pBLF(buf){
-  var dv=new DataView(buf),u8=new Uint8Array(buf),pos=0,len=buf.byteLength;
-  // Check file header signature "LOGG"
-  if(len<16)return[];
+  var u8=new Uint8Array(buf),len=buf.byteLength;
+  if(len<24)return[];
   var sig=String.fromCharCode(u8[0],u8[1],u8[2],u8[3]);
   if(sig!=='LOGG')return[];
-  // Skip file header - find first LOBJ
-  // File header is variable size; scan for LOBJ signature
-  var msgs=[];
-  pos=0;
-  while(pos+28<=len){
-    // Each object starts with signature "LOBJ"
+  var dv=new DataView(buf);
+  var fileHdrSize=dv.getUint32(4,true);
+  // compression: 0=none, 1=deflate, 2=zlib
+  var compress=dv.getUint8(20);
+  if((compress===1||compress===2)&&typeof pako!=='undefined'){
+    try{
+      var decomp=pako.inflate(new Uint8Array(buf,fileHdrSize));
+      var newBuf=new ArrayBuffer(fileHdrSize+decomp.length);
+      var newU8=new Uint8Array(newBuf);
+      newU8.set(u8.subarray(0,fileHdrSize));
+      newU8.set(decomp,fileHdrSize);
+      return pBLF(newBuf);
+    }catch(e){console.error('BLF zlib解压失败:',e)}
+  }
+  // Try multiple start positions to handle different BLF versions
+  var tries=[fileHdrSize];
+  if(fileHdrSize!==144)tries.push(144);
+  if(fileHdrSize!==96)tries.push(96);
+  for(var t=0;t<tries.length;t++){
+    var msgs=pBLFScan(dv,u8,tries[t],len);
+    if(msgs.length>0)return msgs;
+  }
+  return[];
+}
+function pBLFScan(dv,u8,start,len){
+  var msgs=[],pos=start;
+  // First try exact object chaining
+  var r=pBLFChain(dv,u8,pos,len);
+  if(r.msgs.length>0)return r.msgs;
+  // Fallback: scan for LOBJ signatures
+  while(pos+32<=len){
     var osig=String.fromCharCode(u8[pos],u8[pos+1],u8[pos+2],u8[pos+3]);
-    if(osig!=='LOBJ'){pos+=4;continue}
+    if(osig==='LOBJ'){
+      var r2=pBLFChain(dv,u8,pos,len);
+      if(r2.msgs.length>0)return r2.msgs;
+      pos+=4;
+    }else{pos+=4}
+  }
+  return[];
+}
+function pBLFChain(dv,u8,start,len){
+  var msgs=[],pos=start;
+  var maxIter=1000000;
+  while(pos+32<=len&&maxIter-->0){
+    var osig=String.fromCharCode(u8[pos],u8[pos+1],u8[pos+2],u8[pos+3]);
+    if(osig!=='LOBJ')break;
     var hdrSize=dv.getUint16(pos+4,true);
-    // var version=dv.getUint16(pos+6,true);
     var objType=dv.getUint32(pos+8,true);
-    // var flags=dv.getUint32(pos+12,true);
     var objSize=dv.getUint32(pos+16,true);
-    // timestamp: uint64 in 100ns units since 0001-01-01
     var tsLo=dv.getUint32(pos+20,true);
     var tsHi=dv.getUint32(pos+24,true);
-    var ts100ns=tsHi*4294967296+tsLo; // 2^32
-    var ts=ts100ns/10000000.0-62135596800.0;
+    var ts=(tsHi*4294967296+tsLo)/10000000.0-62135596800.0;
     if(objType===1){
-      // CAN message: after hdrSize bytes from start
       var cp=pos+hdrSize;
-      if(cp+8<=len){
+      if(cp+12<=len){
         var ch=dv.getUint16(cp,true);
-        // flags(cp+2), txFlags(cp+3)
         var dlc=dv.getUint8(cp+4);
-        // reserved 3 bytes at cp+5
-        var arbId=dv.getUint32(cp+8,true);
-        var dataStart=cp+12;
-        // Data padded to 4-byte boundary
-        var dataPad=(dlc+3)&~3;
-        var data=[];
-        for(var d=0;d<dlc&&dataStart+d<len;d++)data.push(u8[dataStart+d]);
-        msgs.push({ts:ts,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
+        if(dlc<=64){
+          var arbId=dv.getUint32(cp+8,true);
+          var data=[];
+          for(var d=0;d<dlc&&cp+12+d<len;d++)data.push(u8[cp+12+d]);
+          msgs.push({ts:ts,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
+        }
       }
     }
-    if(objSize<4)break;
+    if(objSize<32)break;
     pos+=objSize;
   }
-  msgs.sort(function(a,b){return a.ts-b.ts});
-  return msgs;
+  return{msgs:msgs,pos:pos};
 }
 
 function eBits(d,s,l,o){
