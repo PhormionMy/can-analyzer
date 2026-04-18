@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v7.18</title>
+<title>CAN分析工具 v7.19</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -241,7 +241,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.18 2026-04-18 20:25</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.19 2026-04-18 20:40</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -999,12 +999,12 @@ function pParseObj(dv,u8,msgs,objType,dp,len,ts){
     var data=[];
     for(var d=0;d<dlc&&d<8&&dp+8+d<len;d++)data.push(u8[dp+8+d]);
     msgs.push({ts:ts,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
-  }else if(objType===86&&dp+24<=len){
-    var ch2=dv.getUint16(dp,true);
-    var dlc2=dv.getUint8(dp+3);
-    var arbId2=dv.getUint32(dp+8,true);
+  }else if(objType===86&&dp+8<=len){
+    var ch2=u8[dp];
+    var dlc2=u8[dp+3];
+    var arbId2=dv.getUint32(dp+4,true)&0x1FFFFFFF;
     var data2=[];
-    for(var d2=0;d2<dlc2&&d2<8&&dp+12+d2<len;d2++)data2.push(u8[dp+12+d2]);
+    for(var d2=0;d2<dlc2&&d2<8&&dp+8+d2<len;d2++)data2.push(u8[dp+8+d2]);
     msgs.push({ts:ts,ch:ch2+1,id:arbId2,idH:hex(d2c(arbId2)),dlc:dlc2,data:data2});
   }else if((objType===100||objType===101)&&dp+24<=len){
     var chf=dv.getUint16(dp,true);
@@ -2612,7 +2612,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v3.4 已加载 - 优化光标选中移动交互');
+console.log('CAN分析工具 v7.19 已加载 - 修复BLF格式解析兼容性');
 })();
 </script>
 </body>
