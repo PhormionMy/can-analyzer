@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v7.14</title>
+<title>CAN分析工具 v7.15</title>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -236,7 +236,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.14 2026-04-18 19:45</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.15 2026-04-18 20:00</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -938,11 +938,9 @@ function pBLF(buf){
   if(len<144)return[];
   var sig=String.fromCharCode(u8[0],u8[1],u8[2],u8[3]);
   if(sig!=='LOGG')return[];
-  // FILE_HEADER_STRUCT = 144 bytes
   var pos=144;
   var msgs=[];
   while(pos+16<=len){
-    // OBJ_HEADER_BASE: signature(4) hdrSize(2) hdrVersion(2) objSize(4) objType(4)
     var osig=String.fromCharCode(u8[pos],u8[pos+1],u8[pos+2],u8[pos+3]);
     if(osig!=='LOBJ'){pos++;continue}
     var hdrSize=dv.getUint16(pos+4,true);
@@ -950,67 +948,79 @@ function pBLF(buf){
     var objType=dv.getUint32(pos+12,true);
     if(objSize<16||objSize>100000000){pos++;continue}
     var pad=objSize%4;
-    var dataStart=pos+hdrSize;
     if(objType===10){
-      // LOG_CONTAINER
-      var contDataStart=pos+16;
-      if(contDataStart+12<=len){
-        var method=dv.getUint16(contDataStart,true);
-        var uncompSize=dv.getUint32(contDataStart+8,true);
-        var containerData=buf.slice(contDataStart+12,pos+objSize);
-        var raw;
-        if(method===0){raw=new Uint8Array(containerData)}
-        else if((method===2||method===1)&&typeof pako!=='undefined'){
-          try{raw=pako.inflate(new Uint8Array(containerData))}catch(e){raw=null}
-        }else{raw=null}
-        if(raw&&raw.length>0)msgs=msgs.concat(pBLFParseContainer(raw));
+      // LOG_CONTAINER: extract all data after base header (16 bytes)
+      // LOG_CONTAINER struct: method(2) + reserved(6) + uncompSize(4) + reserved(4) = 16 bytes
+      // Data starts after container struct = LOBJ + 32
+      var raw=null;
+      if(pos+32<=len){
+        var method=dv.getUint16(pos+16,true);
+        var uncompSize=dv.getUint32(pos+24,true);
+        var containerData=buf.slice(pos+32,pos+objSize);
+        if(method===0){
+          raw=new Uint8Array(containerData);
+        }else if((method===2||method===1)&&typeof pako!=='undefined'){
+          try{raw=pako.inflate(new Uint8Array(containerData))}catch(e){
+            // Fallback: try from offset 16 (no container struct padding)
+            try{raw=pako.inflate(new Uint8Array(buf.slice(pos+16,pos+objSize)))}catch(e2){raw=null}
+          }
+        }
       }
-    }else if(objType===1&&dataStart+16<=len){
-      // CAN_MESSAGE: channel(2) flags(1) dlc(1) arbId(4) data(8) = 16 bytes
-      var ch=dv.getUint16(dataStart,true);
-      var dlc=dv.getUint8(dataStart+3);
-      var arbId=dv.getUint32(dataStart+4,true);
-      var data=[];
-      for(var d=0;d<dlc&&d<8&&dataStart+8+d<len;d++)data.push(u8[dataStart+8+d]);
-      msgs.push({ts:0,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
-    }else if(objType===86&&dataStart+24<=len){
-      // CAN_MESSAGE2: channel(2) flags(1) dlc(1) reserved(3) arbId(4) data(8) + ext
-      var ch2=dv.getUint16(dataStart,true);
-      var dlc2=dv.getUint8(dataStart+3);
-      var arbId2=dv.getUint32(dataStart+8,true);
-      var data2=[];
-      for(var d2=0;d2<dlc2&&d2<8&&dataStart+12+d2<len;d2++)data2.push(u8[dataStart+12+d2]);
-      msgs.push({ts:0,ch:ch2+1,id:arbId2,idH:hex(d2c(arbId2)),dlc:dlc2,data:data2});
-    }else if((objType===100||objType===101)&&dataStart+24<=len){
-      // CAN_FD_MESSAGE / CAN_FD_MESSAGE_64
-      var chf=dv.getUint16(dataStart,true);
-      var dlcf=dv.getUint8(dataStart+3);
-      var arbIdf=dv.getUint32(dataStart+4,true);
-      var dLen=dlcf<=8?dlcf:(dlcf<=12?16:(dlcf<=16?20:(dlcf<=20?24:(dlcf<=24?32:(dlcf<=32?48:64)))));
-      var dataf=[];
-      var fDataStart=objType===101?dataStart+16:dataStart+12;
-      for(var df=0;df<dLen&&fDataStart+df<len;df++)dataf.push(u8[fDataStart+df]);
-      msgs.push({ts:0,ch:chf+1,id:arbIdf,idH:hex(d2c(arbIdf)),dlc:dlcf,data:dataf});
+      // Fallback: if no valid container data found, scan entire LOBJ payload for LOBJ signatures
+      if(!raw||raw.length===0){
+        var allData=new Uint8Array(buf.slice(pos+16,pos+objSize));
+        if(allData.length>16)raw=allData;
+      }
+      if(raw&&raw.length>16){
+        var inner=pBLFParseContainer(raw);
+        if(inner.length>0)msgs=msgs.concat(inner);
+      }
+    }else{
+      var dp=pos+hdrSize;
+      pParseObj(dv,u8,msgs,objType,dp,len,0);
     }
-    // else skip unknown object types
     pos+=objSize+pad;
   }
   msgs.sort(function(a,b){return a.ts-b.ts});
   return msgs;
 }
+function pParseObj(dv,u8,msgs,objType,dp,len,ts){
+  if(objType===1&&dp+16<=len){
+    var ch=dv.getUint16(dp,true);
+    var dlc=dv.getUint8(dp+3);
+    var arbId=dv.getUint32(dp+4,true);
+    var data=[];
+    for(var d=0;d<dlc&&d<8&&dp+8+d<len;d++)data.push(u8[dp+8+d]);
+    msgs.push({ts:ts,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
+  }else if(objType===86&&dp+24<=len){
+    var ch2=dv.getUint16(dp,true);
+    var dlc2=dv.getUint8(dp+3);
+    var arbId2=dv.getUint32(dp+8,true);
+    var data2=[];
+    for(var d2=0;d2<dlc2&&d2<8&&dp+12+d2<len;d2++)data2.push(u8[dp+12+d2]);
+    msgs.push({ts:ts,ch:ch2+1,id:arbId2,idH:hex(d2c(arbId2)),dlc:dlc2,data:data2});
+  }else if((objType===100||objType===101)&&dp+24<=len){
+    var chf=dv.getUint16(dp,true);
+    var dlcf=dv.getUint8(dp+3);
+    var arbIdf=dv.getUint32(dp+4,true);
+    var dLen=dlcf<=8?dlcf:(dlcf<=12?16:(dlcf<=16?20:(dlcf<=20?24:(dlcf<=24?32:(dlcf<=32?48:64)))));
+    var dataf=[];
+    var fDataStart=objType===101?dp+16:dp+12;
+    for(var df=0;df<dLen&&fDataStart+df<len;df++)dataf.push(u8[fDataStart+df]);
+    msgs.push({ts:ts,ch:chf+1,id:arbIdf,idH:hex(d2c(arbIdf)),dlc:dlcf,data:dataf});
+  }
+}
 function pBLFParseContainer(u8){
   var dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
   var msgs=[],pos=0,len=u8.length;
   while(pos+16<=len){
-    if(pos+16>len)break;
-    // OBJ_HEADER_BASE: signature(4) hdrSize(2) hdrVersion(2) objSize(4) objType(4)
     if(u8[pos]!==0x4C||u8[pos+1]!==0x4F||u8[pos+2]!==0x42||u8[pos+3]!==0x4A){pos++;continue}
     var hdrSize=dv.getUint16(pos+4,true);
     var objSize=dv.getUint32(pos+8,true);
     var objType=dv.getUint32(pos+12,true);
     if(objSize<16||objSize>1000000){pos++;continue}
     var ts=0;
-    if(hdrSize>=32&&pos+hdrSize<=len){
+    if(hdrSize>=32&&pos+32<=len){
       var tsLo=dv.getUint32(pos+24,true);
       var tsHi=dv.getUint32(pos+28,true);
       var rawTs=tsHi*4294967296+tsLo;
@@ -1019,31 +1029,7 @@ function pBLFParseContainer(u8){
       if(ts>62135596800)ts-=62135596800.0;
     }
     var dp=pos+hdrSize;
-    if(objType===1&&dp+16<=len){
-      var ch=dv.getUint16(dp,true);
-      var dlc=dv.getUint8(dp+3);
-      var arbId=dv.getUint32(dp+4,true);
-      var data=[];
-      for(var d=0;d<dlc&&d<8&&dp+8+d<len;d++)data.push(u8[dp+8+d]);
-      msgs.push({ts:ts,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
-    }else if(objType===86&&dp+24<=len){
-      var ch2=dv.getUint16(dp,true);
-      var dlc2=dv.getUint8(dp+3);
-      var arbId2=dv.getUint32(dp+8,true);
-      var data2=[];
-      for(var d2=0;d2<dlc2&&d2<8&&dp+12+d2<len;d2++)data2.push(u8[dp+12+d2]);
-      msgs.push({ts:ts,ch:ch2+1,id:arbId2,idH:hex(d2c(arbId2)),dlc:dlc2,data:data2});
-    }else if((objType===100||objType===101)&&dp+24<=len){
-      var chf=dv.getUint16(dp,true);
-      var dlcf=dv.getUint8(dp+3);
-      var arbIdf=dv.getUint32(dp+4,true);
-      var dLen=dlcf<=8?dlcf:(dlcf<=12?16:(dlcf<=16?20:(dlcf<=20?24:(dlcf<=24?32:(dlcf<=32?48:64)))));
-      var dataf=[];
-      var fDataStart=objType===101?dp+16:dp+12;
-      for(var df=0;df<dLen&&fDataStart+df<len;df++)dataf.push(u8[fDataStart+df]);
-      msgs.push({ts:ts,ch:chf+1,id:arbIdf,idH:hex(d2c(arbIdf)),dlc:dlcf,data:dataf});
-    }
-    // skip unknown object types instead of breaking
+    pParseObj(dv,u8,msgs,objType,dp,len,ts);
     var pad=objSize%4;
     pos+=objSize+pad;
   }
