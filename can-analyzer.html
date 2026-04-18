@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v7.8</title>
+<title>CAN分析工具 v7.9</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--safe-right:env(safe-area-inset-right,0px);--nav-h:52px;--header-h:44px}
@@ -50,7 +50,7 @@ body{display:flex;flex-direction:column}
 .ax-chip .ax-toggle{width:16px;height:16px;border-radius:4px;border:none;background:transparent;color:#888;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:2px;opacity:0.7}
 .ax-chip .ax-toggle:active{opacity:1}
 .ax-chip .ax-toggle.hidden{color:#555}
-.chart-area{flex:1;overflow:auto;background:#0a0a0a;-webkit-overflow-scrolling:touch;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.chart-area{flex:1;overflow-y:auto;overflow-x:hidden;background:#0a0a0a;-webkit-overflow-scrolling:touch;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:0;transition:opacity .25s}
 .drawer-overlay.show{display:block;opacity:1}
 .drawer{position:fixed;top:0;left:0;bottom:0;width:85%;max-width:340px;background:#111218;z-index:101;transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;padding-top:var(--safe-top);box-shadow:4px 0 20px rgba(0,0,0,0.5)}
@@ -201,7 +201,7 @@ body{display:flex;flex-direction:column}
 #tooltip{position:fixed;background:#111218ee;border:0.5px solid #2a2a3a;border-radius:10px;padding:8px 10px;font-size:10px;z-index:150;display:none;pointer-events:none;max-width:300px;line-height:1.5;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 4px 20px rgba(0,0,0,0.4)}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#444;padding:40px 20px;gap:8px;font-size:13px;text-align:center;flex:1}
 .empty-state .es-icon{font-size:48px;opacity:.3;margin-bottom:8px}
-.chart-container{border-bottom:0.5px solid #1a1a2a}
+.chart-container{border-bottom:0.5px solid #1a1a2a;min-height:0}
 .chart-container svg{display:block}
 .chart-legend-m{display:flex;flex-wrap:wrap;gap:4px;padding:6px 10px;background:#111218;border-bottom:0.5px solid #2a2a3a;align-items:center;min-height:28px}
 .legend-item-m{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:8px;font-size:10px;cursor:pointer;border:0.5px solid #2a2a3a;background:#15152a;transition:all .12s;user-select:none}
@@ -235,7 +235,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.8 2026-04-17 08:45</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.9 2026-04-18 11:16</span></div>
     <div class="header-actions"><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -287,8 +287,8 @@ body{display:flex;flex-direction:column}
   </div>
   <div class="page" id="page-upload">
     <div class="upload-page">
-      <div class="upload-section"><div class="upload-section-title">📄 ASC 日志文件</div><div class="upload-section-desc">CAN总线记录数据，支持 .asc .txt .csv 格式</div>
-        <div class="upload-zone" id="ascZone"><input type="file" id="ascIn" accept=".asc,.txt,.csv,.ASC,.TXT,.CSV,application/octet-stream" multiple><div class="uz-icon">📁</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.asc .txt .csv</div></div>
+      <div class="upload-section"><div class="upload-section-title">📄 ASC 日志文件</div><div class="upload-section-desc">CAN总线记录数据，支持 .asc .txt .csv .blf 格式</div>
+        <div class="upload-zone" id="ascZone"><input type="file" id="ascIn" accept=".asc,.txt,.csv,.blf,.ASC,.TXT,.CSV,.BLF,application/octet-stream" multiple><div class="uz-icon">📁</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.asc .txt .csv .blf</div></div>
         <div class="file-list" id="ascL"></div>
       </div>
       <div class="upload-section"><div class="upload-section-title">📐 DBC 协议文件</div><div class="upload-section-desc">CAN信号数据库定义文件</div>
@@ -715,6 +715,7 @@ function uB(){
   $('dbcLibSaveBtn').style.display=S.dF.length>0?'':'none';
 }
 function rd(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.onload=function(e){r(e.target.result)};rd2.onerror=j;rd2.readAsText(f,'UTF-8')})}
+function rdBin(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.onload=function(e){r(e.target.result)};rd2.onerror=j;rd2.readAsArrayBuffer(f)})}
 
 // ====== DBC Library (localStorage) ======
 var DBC_LIB_KEY='can_tool_dbc_lib';
@@ -931,6 +932,54 @@ function pASC(c){
   return msgs;
 }
 
+function pBLF(buf){
+  var dv=new DataView(buf),u8=new Uint8Array(buf),pos=0,len=buf.byteLength;
+  // Check file header signature "LOGG"
+  if(len<16)return[];
+  var sig=String.fromCharCode(u8[0],u8[1],u8[2],u8[3]);
+  if(sig!=='LOGG')return[];
+  // Skip file header - find first LOBJ
+  // File header is variable size; scan for LOBJ signature
+  var msgs=[];
+  pos=0;
+  while(pos+28<=len){
+    // Each object starts with signature "LOBJ"
+    var osig=String.fromCharCode(u8[pos],u8[pos+1],u8[pos+2],u8[pos+3]);
+    if(osig!=='LOBJ'){pos+=4;continue}
+    var hdrSize=dv.getUint16(pos+4,true);
+    // var version=dv.getUint16(pos+6,true);
+    var objType=dv.getUint32(pos+8,true);
+    // var flags=dv.getUint32(pos+12,true);
+    var objSize=dv.getUint32(pos+16,true);
+    // timestamp: uint64 in 100ns units since 0001-01-01
+    var tsLo=dv.getUint32(pos+20,true);
+    var tsHi=dv.getUint32(pos+24,true);
+    var ts100ns=tsHi*4294967296+tsLo; // 2^32
+    var ts=ts100ns/10000000.0-62135596800.0;
+    if(objType===1){
+      // CAN message: after hdrSize bytes from start
+      var cp=pos+hdrSize;
+      if(cp+8<=len){
+        var ch=dv.getUint16(cp,true);
+        // flags(cp+2), txFlags(cp+3)
+        var dlc=dv.getUint8(cp+4);
+        // reserved 3 bytes at cp+5
+        var arbId=dv.getUint32(cp+8,true);
+        var dataStart=cp+12;
+        // Data padded to 4-byte boundary
+        var dataPad=(dlc+3)&~3;
+        var data=[];
+        for(var d=0;d<dlc&&dataStart+d<len;d++)data.push(u8[dataStart+d]);
+        msgs.push({ts:ts,ch:ch+1,id:arbId,idH:hex(d2c(arbId)),dlc:dlc,data:data});
+      }
+    }
+    if(objSize<4)break;
+    pos+=objSize;
+  }
+  msgs.sort(function(a,b){return a.ts-b.ts});
+  return msgs;
+}
+
 function eBits(d,s,l,o){
   var r=0;
   if(o===1){
@@ -1016,7 +1065,11 @@ $('goBtn').addEventListener('click',async function(){
     var dc='';
     for(var d=0;d<S.dF.length;d++)dc+=await rd(S.dF[d].f);
     pDBC(dc);
-    for(var a=0;a<S.aF.length;a++){var ac2=await rd(S.aF[a].f);S.msgs=S.msgs.concat(pASC(ac2))}
+    for(var a=0;a<S.aF.length;a++){
+      var fObj=S.aF[a].f,isBlf=/\.blf$/i.test(fObj.name);
+      var ac2=isBlf?await rdBin(fObj):await rd(fObj);
+      S.msgs=S.msgs.concat(isBlf?pBLF(ac2):pASC(ac2));
+    }
     S.msgs.sort(function(a,b){return a.ts-b.ts});
     var cs={};
     for(var i=0;i<S.msgs.length;i++)cs[S.msgs[i].ch]=1;
