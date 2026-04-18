@@ -986,7 +986,7 @@ function pBLF(buf){
       var chf=dv.getUint16(dataStart,true);
       var dlcf=dv.getUint8(dataStart+3);
       var arbIdf=dv.getUint32(dataStart+4,true);
-      var dLen=dlcf<=8?dlcf:(dlcf<=12?16:(dlcf<=16?20:(dlcf<=20?24:(dlcf<=24?32:(dlcf<=32?48:64))));
+      var dLen=dlcf<=8?dlcf:(dlcf<=12?16:(dlcf<=16?20:(dlcf<=20?24:(dlcf<=24?32:(dlcf<=32?48:64)))));
       var dataf=[];
       var fDataStart=objType===101?dataStart+16:dataStart+12;
       for(var df=0;df<dLen&&fDataStart+df<len;df++)dataf.push(u8[fDataStart+df]);
