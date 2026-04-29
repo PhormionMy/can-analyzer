@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v7.30</title>
+<title>CAN分析工具 v8.0</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -302,7 +302,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.30 2026-04-29 19:03</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v8.0 2026-04-29 19:09</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -2676,7 +2676,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
+console.log('CAN分析工具 v8.0 已加载 - 重要信号量数据总结增强版');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
@@ -3412,6 +3412,7 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
     var warningCount=anomalies.filter(function(a){return a.severity==='warning'}).length;
     var healthScore=Math.max(0,100-criticalCount*20-warningCount*5);
     var healthClass=healthScore>=80?'good':healthScore>=50?'warn':'bad';
+    var totalSigs=Object.keys(mcuSigs).reduce(function(n,c){return n+mcuSigs[c].length},0);
 
     h+='<div class="ai-result">';
     h+='<div class="ai-result-title">📊 诊断概览</div>';
@@ -3423,8 +3424,8 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
     h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">';
     if(criticalCount>0)h+='<span class="anomaly-tag critical">严重 '+criticalCount+'</span>';
     if(warningCount>0)h+='<span class="anomaly-tag warning">警告 '+warningCount+'</span>';
-    if(anomalies.length===0)h+='<span class="anomaly-tag info">未发现异常</span>';
-    h+='<span style="font-size:10px;color:#666">信号 '+Object.keys(mcuSigs).reduce(function(n,c){return n+mcuSigs[c].length},0)+' 个</span>';
+    if(anomalies.length===0)h+='<span class="anomaly-tag info">✓ 未发现异常</span>';
+    h+='<span style="font-size:10px;color:#666">信号 '+totalSigs+' 个</span>';
     h+='</div>';
 
     // Anomaly list with embedded signal charts
@@ -3435,26 +3436,116 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
         h+='<div class="ai-signal-card" style="border-left:3px solid '+(a.severity==='critical'?'#ff6b6b':'#ffa94d')+'">';
         h+='<div class="sig-name"><span class="anomaly-tag '+(a.severity==='critical'?'critical':'warning')+'">'+(a.severity==='critical'?'严重':'警告')+'</span> '+a.title+'</div>';
         h+='<div class="sig-value">'+a.detail+'</div>';
-        // Show signal info if available
         if(a.reqSig||a.fbkSig){
           h+='<div style="font-size:10px;color:#4dabf7;margin:4px 0 2px">📐 关联信号: '+(a.reqSig||'')+(a.fbkSig?' vs '+a.fbkSig:'')+'</div>';
         }
-        // Embed signal chart and stats for this anomaly
         var anomalyCharts=getAnomalySignalData(a,mcuSigs);
         if(anomalyCharts)h+=anomalyCharts;
         h+='</div>';
       }
       h+='</div>';
     }
-    h+='</div>';
 
-    // Key signal overview charts (non-anomaly signals)
-    var overviewCharts=generateOverviewCharts(mcuSigs,anomalies,userQuery);
-    if(overviewCharts)h+=overviewCharts;
+    // ===== 重要信号量数据总结（无论是否有异常都展示） =====
+    h+=renderSignalSummary(mcuSigs,anomalies,userQuery);
 
-    // LLM Report - now rendered separately via renderLLMReport
+    // LLM Report placeholder
     h+='</div>';
     AI_RESULT.innerHTML=h;
+  }
+
+  // ===== 重要信号量数据总结 =====
+  function renderSignalSummary(mcuSigs,anomalies,userQuery){
+    var focusCats=getFocusCategories(userQuery,anomalies);
+    var allCats=Object.keys(mcuSigs).filter(function(c){return mcuSigs[c].length>0});
+    // Sort: focus first, then by signal count descending
+    var sortedCats=focusCats.concat(allCats.filter(function(c){return focusCats.indexOf(c)<0}));
+    sortedCats=sortedCats.filter(function(c,i){return sortedCats.indexOf(c)===i}); // dedupe
+    sortedCats.sort(function(a,b){
+      var aF=focusCats.indexOf(a)>=0?0:1,bF=focusCats.indexOf(b)>=0?0:1;
+      if(aF!==bF)return aF-bF;
+      return mcuSigs[b].length-mcuSigs[a].length;
+    });
+
+    var h='<div class="ai-result" style="margin-top:8px">';
+    h+='<div class="ai-result-title">📈 重要信号量数据总结</div>';
+
+    var chartCount=0;
+    var maxCharts=8;
+
+    for(var ci=0;ci<sortedCats.length;ci++){
+      var cat=sortedCats[ci];
+      var sigs=mcuSigs[cat];
+      if(!sigs||sigs.length===0)continue;
+      var isFocus=focusCats.indexOf(cat)>=0;
+      var catLabel=MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].label:cat;
+      var catColor=MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].color:'#00d4ff';
+
+      // Find the best signal in this category (highest variance = most interesting)
+      var bestSig=null,bestPts=null,bestStats=null,bestScore=-1;
+      for(var i=0;i<sigs.length;i++){
+        var pts=getSignalTimeSeries(sigs[i]);
+        if(!pts||pts.length<5)continue;
+        var stats=analyzeStats(pts);
+        if(!stats)continue;
+        var score=stats.std+stats.range*0.1+(isFocus?1000:0);
+        if(score>bestScore){bestScore=score;bestSig=sigs[i];bestPts=pts;bestStats=stats;}
+      }
+      if(!bestSig)continue;
+
+      // Category header
+      h+='<div style="margin:8px 0 4px;padding:6px 8px;background:'+(isFocus?'#1a0a2e':'#0e0e16')+';border-radius:8px;border:0.5px solid '+(isFocus?'#a855f744':'#1a1a2a')+'">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+      h+='<div style="font-size:11px;font-weight:600;color:'+(isFocus?'#a855f7':'#aaa')+'">'+(isFocus?'⭐ ':'')+catLabel+' ('+sigs.length+'个信号)'+(isFocus?' [重点关注]':'')+'</div>';
+      h+='<div style="font-size:9px;color:#555">'+bestSig.msg.name+'</div>';
+      h+='</div>';
+
+      // Signal name and unit
+      h+='<div style="font-size:10px;color:'+catColor+';margin:4px 0 2px">'+bestSig.sig.name+(bestSig.sig.unit?' ('+bestSig.sig.unit+')':'')+'</div>';
+
+      // Stats bar
+      h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0">';
+      h+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:10px;color:#4dabf7">最小: '+bestStats.min.toFixed(2)+'</span>';
+      h+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:10px;color:#00ff88">最大: '+bestStats.max.toFixed(2)+'</span>';
+      h+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:10px;color:#ffd700">均值: '+bestStats.mean.toFixed(2)+'</span>';
+      h+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:10px;color:#ffa94d">σ: '+bestStats.std.toFixed(2)+'</span>';
+      h+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:10px;color:#e599f7">范围: '+bestStats.range.toFixed(2)+'</span>';
+      // Trend
+      if(bestStats.n>10){
+        var trendDelta=bestStats.last.v-bestStats.first.v;
+        if(Math.abs(trendDelta)>bestStats.std*0.5){
+          var tColor=trendDelta>0?'#ff6b9d':'#4dabf7';
+          var tArrow=trendDelta>0?'↑上升':'↓下降';
+          h+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:10px;color:'+tColor+'">趋势: '+tArrow+' '+Math.abs(trendDelta).toFixed(2)+'</span>';
+        }
+      }
+      if(bestStats.spikes.length>0){
+        h+='<span style="background:#3d0a0a;padding:2px 7px;border-radius:5px;font-size:10px;color:#ff6b6b">⚠ '+bestStats.spikes.length+'个尖峰</span>';
+      }
+      h+='</div>';
+
+      // Waveform chart
+      if(chartCount<maxCharts){
+        h+=renderInlineChart(bestPts,bestStats,bestSig.sig.name,catColor);
+        chartCount++;
+      }
+
+      // If there are multiple signals in this category, show a brief summary
+      if(sigs.length>1){
+        h+='<div style="font-size:9px;color:#555;margin-top:4px">';
+        var otherNames=[];
+        for(var i=0;i<Math.min(sigs.length,4);i++){
+          if(sigs[i].sig.name!==bestSig.sig.name)otherNames.push(sigs[i].sig.name);
+        }
+        if(otherNames.length>0)h+='其他信号: '+otherNames.join(', ');
+        if(sigs.length>4)h+=' 等'+sigs.length+'个';
+        h+='</div>';
+      }
+
+      h+='</div>';
+    }
+    h+='</div>';
+    return h;
   }
 
   // ===== Get signal data and chart for a specific anomaly =====
@@ -3674,47 +3765,6 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
   }
 
   // ===== Overview charts for key non-anomaly signals =====
-  function generateOverviewCharts(mcuSigs,anomalies,userQuery){
-    var focusCats=getFocusCategories(userQuery,anomalies);
-    var chartSignals=[];
-    var allCats=Object.keys(mcuSigs).filter(function(c){return mcuSigs[c].length>0});
-    var sortedCats=focusCats.concat(allCats.filter(function(c){return focusCats.indexOf(c)<0}));
-    var seen={};
-    for(var ci=0;ci<sortedCats.length&&chartSignals.length<6;ci++){
-      var cat=sortedCats[ci];
-      if(!mcuSigs[cat]||seen[cat])continue;
-      seen[cat]=true;
-      var bestSig=null,bestScore=-1;
-      for(var i=0;i<mcuSigs[cat].length;i++){
-        var pts=getSignalTimeSeries(mcuSigs[cat][i]);
-        if(!pts||pts.length<5)continue;
-        var stats=analyzeStats(pts);
-        if(!stats)continue;
-        var score=stats.std*(focusCats.indexOf(cat)>=0?3:1);
-        if(score>bestScore){bestScore=score;bestSig={info:mcuSigs[cat][i],pts:pts,stats:stats,cat:cat};}
-      }
-      if(bestSig)chartSignals.push(bestSig);
-    }
-    if(chartSignals.length===0)return '';
-    var h='<div class="ai-result" style="margin-top:8px">';
-    h+='<div class="ai-result-title">📈 关键信号波形总览 ('+chartSignals.length+'路)</div>';
-    for(var si=0;si<chartSignals.length;si++){
-      var cs=chartSignals[si];
-      var catLabel=MCU_SIG_PATTERNS[cs.cat]?MCU_SIG_PATTERNS[cs.cat].label:cs.cat;
-      var catColor=MCU_SIG_PATTERNS[cs.cat]?MCU_SIG_PATTERNS[cs.cat].color:'#00d4ff';
-      h+='<div style="margin:6px 0;padding:6px;background:#0a0a14;border-radius:8px;border:0.5px solid #1a1a2a">';
-      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">';
-      h+='<div style="font-size:10px;color:#888">'+catLabel+'</div>';
-      h+='<div style="font-size:9px;color:#555">'+cs.info.sig.msg.name+'</div>';
-      h+='</div>';
-      h+=renderInlineStats(cs.stats,cs.info.sig.unit||'');
-      h+=renderInlineChart(cs.pts,cs.stats,cs.info.sig.name,catColor);
-      h+='</div>';
-    }
-    h+='</div>';
-    return h;
-  }
-
   // ===== Main Analysis Flow =====
   function renderLLMReport(report){
     var el=document.getElementById('aiLLMSection');
