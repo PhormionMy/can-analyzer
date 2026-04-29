@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v7.28</title>
+<title>CAN分析工具 v7.29</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -302,7 +302,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.28 2026-04-29 18:28</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.29 2026-04-29 18:35</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -598,7 +598,7 @@ var BUILTIN_DBC={
 var AC=['#00d4ff','#ffd700','#ff6b9d','#00ff88','#c084fc','#fb923c','#f87171','#2dd4bf','#60a5fa','#a3e635'];
 var CC=['#00d4ff','#ff6b9d','#00ff88','#ffd700','#c084fc','#fb923c','#f87171','#60a5fa','#2dd4bf','#a3e635'];
 var NS='http://www.w3.org/2000/svg';
-var CURSOR_NEAR_THRESHOLD=20; // 光标吸附阈值(px)
+var CURSOR_NEAR_THRESHOLD=35; // 光标吸附阈值(px)
 
 // ====== State ======
 var S={
@@ -1627,7 +1627,7 @@ function rChart(){
     if(S.dec[k]&&S.dec[k].length>0&&C.ss[k]!==undefined){
       var aid=C.ss[k];
       if(ag[aid]!==undefined)ag[aid].push(k);
-      else delete C.ss[k];
+      // 不删除隐藏轴的信号映射，只跳过渲染
     }
   }
 
@@ -1899,19 +1899,7 @@ function mChart(ax,sigs,yMn,yMx){
           updateCursorStatus(sub);
           return;
         }
-        // 不靠近已有光标时，如果已有选中光标则直接移动它
-        if(C.selectedCursor&&mx>=sub.mg.l&&mx<=sub.mg.l+sub.pw){
-          e.preventDefault();
-          var t=timeAtX(sub,mx);
-          if(C.selectedCursor==='c1')C.c1=t;
-          else if(C.selectedCursor==='c2')C.c2=t;
-          C.touchState.mode='cursor';
-          C.curDrag=C.selectedCursor;
-          C._moved=true;
-          updateCursorHandles(sub);
-          updateCursorStatus(sub);
-          return;
-        }
+        // 不靠近已有光标时，允许正常平移/缩放（不自动放置光标）
       }
     }
   },{passive:false});
@@ -2036,18 +2024,17 @@ function mChart(ax,sigs,yMn,yMx){
           C.lastTap.time=0;
         } else {
           C.lastTap.time=now;C.lastTap.x=tx;C.lastTap.y=ty;
-          // 单击 → 放置/切换光标
+          // 单击 → 仅在靠近光标时选中，否则不操作（允许平移/缩放）
           if(C.cm!==0){
             var rect=svg.getBoundingClientRect();
             var mx=tx-rect.left;
             if(mx>=mg.l&&mx<=mg.l+sub.pw){
-              var t=timeAtX(sub,mx);
-              if(C.cm===1){C.c1=t;C.selectedCursor='c1'}
-              else if(C.cm===2){
-                if(!C.selectedCursor||C.selectedCursor==='c2'){C.c1=t;C.selectedCursor='c1'}
-                else{C.c2=t;C.selectedCursor='c2'}
+              var nearCur=detectNearCursor(sub,mx);
+              if(nearCur){
+                C.selectedCursor=nearCur;
+                updateCursorHandles(sub);updateCursorStatus(sub);uCur();
               }
-              updateCursorHandles(sub);updateCursorStatus(sub);uCur();
+              // 不靠近光标时不放置/切换光标
             }
           }
         }
@@ -2075,16 +2062,13 @@ function mChart(ax,sigs,yMn,yMx){
     if(mx2<mg.l||mx2>mg.l+sub.pw)return;
     var ct=timeAtX(sub,mx2);
 
-    // 检测点击位置是否靠近光标 → 选中
+    // 检测点击位置是否靠近光标 → 选中，否则不做操作（允许平移/缩放）
     var nearCursor=detectNearCursor(sub,mx2);
     if(nearCursor){
       C.selectedCursor=nearCursor;
     } else {
-      if(C.cm===1){C.c1=ct;C.selectedCursor='c1'}
-      else if(C.cm===2){
-        if(!C.selectedCursor||C.selectedCursor==='c2'){C.c1=ct;C.selectedCursor='c1'}
-        else{C.c2=ct;C.selectedCursor='c2'}
-      }
+      // 不靠近光标时不放置/切换光标，交由平移/缩放处理
+      return;
     }
     updateCursorHandles(sub);
     updateCursorStatus(sub);
@@ -2197,17 +2181,7 @@ function chartPointerDown(cx,cy,sub){
       updateCursorStatus(sub);
       return;
     }
-    // 不靠近已有光标时，点击放置/移动选中的光标
-    if(C.selectedCursor&&mx>=sub.mg.l&&mx<=sub.mg.l+sub.pw){
-      var t=timeAtX(sub,mx);
-      if(C.selectedCursor==='c1')C.c1=t;
-      else if(C.selectedCursor==='c2')C.c2=t;
-      C._moved=true;
-      updateCursorHandles(sub);
-      updateCursorStatus(sub);
-      uCur();
-      return;
-    }
+    // 不靠近已有光标时，允许正常平移（不自动放置光标）
   }
 
   // 平移波形
@@ -2525,6 +2499,12 @@ $('cs').addEventListener('click',function(){setCur(1)});
 $('cd').addEventListener('click',function(){setCur(2)});
 function setCur(m){
   C.cm=m;C.c1=null;C.c2=null;C.hov=null;C.curDrag=null;C.selectedCursor=null;
+  // 自动在可见时间范围中心放置光标，方便拖拽操作
+  if(m!==0&&C.t0!==null&&C.t1!==null){
+    var centerT=(C.t0+C.t1)/2;
+    if(m===1){C.c1=centerT;C.selectedCursor='c1'}
+    else if(m===2){C.c1=centerT-(C.t1-C.t0)*0.1;C.c2=centerT+(C.t1-C.t0)*0.1;C.selectedCursor='c1'}
+  }
   $('co').classList.toggle('active',m===0);
   $('cs').classList.toggle('active',m===1);
   $('cd').classList.toggle('active',m===2);
