@@ -302,7 +302,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.30 2026-04-29 18:55</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v7.30 2026-04-29 19:03</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -3435,6 +3435,10 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
         h+='<div class="ai-signal-card" style="border-left:3px solid '+(a.severity==='critical'?'#ff6b6b':'#ffa94d')+'">';
         h+='<div class="sig-name"><span class="anomaly-tag '+(a.severity==='critical'?'critical':'warning')+'">'+(a.severity==='critical'?'严重':'警告')+'</span> '+a.title+'</div>';
         h+='<div class="sig-value">'+a.detail+'</div>';
+        // Show signal info if available
+        if(a.reqSig||a.fbkSig){
+          h+='<div style="font-size:10px;color:#4dabf7;margin:4px 0 2px">📐 关联信号: '+(a.reqSig||'')+(a.fbkSig?' vs '+a.fbkSig:'')+'</div>';
+        }
         // Embed signal chart and stats for this anomaly
         var anomalyCharts=getAnomalySignalData(a,mcuSigs);
         if(anomalyCharts)h+=anomalyCharts;
@@ -3458,46 +3462,87 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
     var cat=anomaly.cat;
     var sigs=mcuSigs[cat];
     if(!sigs||sigs.length===0)return null;
-    // Find the most relevant signal(s) for this anomaly
+
+    // Strategy 1: Use reqSig/fbkSig if available (torque tracking etc.)
     var relevantSigs=[];
-    var titleLower=anomaly.title.toLowerCase();
-    for(var i=0;i<sigs.length;i++){
-      var sigName=sigs[i].sig.name.toLowerCase();
-      var msgName=sigs[i].msg.name.toLowerCase();
-      // Match signal name against anomaly title keywords
-      if(titleLower.indexOf(sigName)>=0||sigName.indexOf(titleLower.split(' - ')[1]||'')>=0||
-         (anomaly.reqSig&&sigName.indexOf(anomaly.reqSig.toLowerCase())>=0)||
-         (anomaly.fbkSig&&sigName.indexOf(anomaly.fbkSig.toLowerCase())>=0)){
-        relevantSigs.push(sigs[i]);
+    if(anomaly.reqSig){
+      for(var i=0;i<sigs.length;i++){
+        if(sigs[i].sig.name===anomaly.reqSig){relevantSigs.push(sigs[i]);break;}
       }
     }
-    // If no exact match, use stats from the anomaly or pick top signals
+    if(anomaly.fbkSig){
+      for(var i=0;i<sigs.length;i++){
+        if(sigs[i].sig.name===anomaly.fbkSig){relevantSigs.push(sigs[i]);break;}
+      }
+    }
+
+    // Strategy 2: Extract signal name from title (pattern: "XXX - SigName")
     if(relevantSigs.length===0){
-      // Try to find by category with data
-      for(var i=0;i<Math.min(sigs.length,2);i++){
-        var pts=getSignalTimeSeries(sigs[i]);
-        if(pts&&pts.length>5)relevantSigs.push(sigs[i]);
+      var titleParts=anomaly.title.split(/\s*[-–]\s*/);
+      if(titleParts.length>=2){
+        var namePart=titleParts[titleParts.length-1].trim().toLowerCase();
+        for(var i=0;i<sigs.length;i++){
+          if(sigs[i].sig.name.toLowerCase().indexOf(namePart)>=0||
+             namePart.indexOf(sigs[i].sig.name.toLowerCase())>=0){
+            relevantSigs.push(sigs[i]);break;
+          }
+        }
       }
     }
+
+    // Strategy 3: Match by keyword patterns based on category
+    if(relevantSigs.length===0){
+      var kwPatterns={
+        torque:[/fbk|actual|out|act|motor|feedback/i,/req|cmd|demand|set|dmd/i],
+        speed:[/fbk|actual|out|act|motor|spd$|speed$|feedback/i],
+        temp:[/igbt|inverter|逆变/i,/motor|mot|电机|stator/i,/coolant|cool|水温/i],
+        voltage:[/udc|dc.*volt|bus.*volt|母线|ipu.*volt/i],
+        current:[/idc|dc.*curr|ipu.*curr|igbt.*curr/i],
+        fault:[/dtc|fault.*code|故障码/i],
+        ctrlMode:[/fbk|status|sts|work|mcu/i,/req|cmd|vcu|hcu/i],
+        enable:[/enable|en|hvil|ready|igbt/i]
+      };
+      var pats=kwPatterns[cat];
+      if(pats){
+        for(var p=0;p<pats.length&&relevantSigs.length<2;p++){
+          for(var i=0;i<sigs.length;i++){
+            if(pats[p].test(sigs[i].sig.name)){
+              var pts=getSignalTimeSeries(sigs[i]);
+              if(pts&&pts.length>5){relevantSigs.push(sigs[i]);break;}
+            }
+          }
+        }
+      }
+    }
+
+    // Strategy 4: Just pick the first signal with data
+    if(relevantSigs.length===0){
+      for(var i=0;i<sigs.length;i++){
+        var pts=getSignalTimeSeries(sigs[i]);
+        if(pts&&pts.length>5){relevantSigs.push(sigs[i]);break;}
+      }
+    }
+
     if(relevantSigs.length===0&&!anomaly.stats)return null;
 
     var out='';
-    // If anomaly already has stats, show them
     var stats=anomaly.stats;
-    // Also compute stats from the first relevant signal if available
+
+    // Render primary signal chart
     if(relevantSigs.length>0){
       var pts=getSignalTimeSeries(relevantSigs[0]);
       if(pts&&pts.length>5){
         if(!stats)stats=analyzeStats(pts);
         if(stats){
-          out+=renderInlineStats(stats,relevantSigs[0].sig.unit);
+          out+=renderInlineStats(stats,relevantSigs[0].sig.unit||'');
           out+=renderInlineChart(pts,stats,relevantSigs[0].sig.name,MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].color:'#00d4ff');
         }
       }
     }else if(stats){
       out+=renderInlineStats(stats,'');
     }
-    // If there are two relevant signals (req vs fbk), show comparison chart
+
+    // Render comparison chart if two signals (req vs fbk)
     if(relevantSigs.length>=2){
       var pts1=getSignalTimeSeries(relevantSigs[0]);
       var pts2=getSignalTimeSeries(relevantSigs[1]);
@@ -3635,7 +3680,7 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
     var allCats=Object.keys(mcuSigs).filter(function(c){return mcuSigs[c].length>0});
     var sortedCats=focusCats.concat(allCats.filter(function(c){return focusCats.indexOf(c)<0}));
     var seen={};
-    for(var ci=0;ci<sortedCats.length&&chartSignals.length<3;ci++){
+    for(var ci=0;ci<sortedCats.length&&chartSignals.length<6;ci++){
       var cat=sortedCats[ci];
       if(!mcuSigs[cat]||seen[cat])continue;
       seen[cat]=true;
@@ -3652,13 +3697,16 @@ console.log('CAN分析工具 v7.30 已加载 - AI分析引擎增强版');
     }
     if(chartSignals.length===0)return '';
     var h='<div class="ai-result" style="margin-top:8px">';
-    h+='<div class="ai-result-title">📈 关键信号趋势</div>';
+    h+='<div class="ai-result-title">📈 关键信号波形总览 ('+chartSignals.length+'路)</div>';
     for(var si=0;si<chartSignals.length;si++){
       var cs=chartSignals[si];
       var catLabel=MCU_SIG_PATTERNS[cs.cat]?MCU_SIG_PATTERNS[cs.cat].label:cs.cat;
       var catColor=MCU_SIG_PATTERNS[cs.cat]?MCU_SIG_PATTERNS[cs.cat].color:'#00d4ff';
-      h+='<div style="margin:4px 0">';
-      h+='<div style="font-size:10px;color:#888;margin-bottom:2px">'+catLabel+'</div>';
+      h+='<div style="margin:6px 0;padding:6px;background:#0a0a14;border-radius:8px;border:0.5px solid #1a1a2a">';
+      h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">';
+      h+='<div style="font-size:10px;color:#888">'+catLabel+'</div>';
+      h+='<div style="font-size:9px;color:#555">'+cs.info.sig.msg.name+'</div>';
+      h+='</div>';
       h+=renderInlineStats(cs.stats,cs.info.sig.unit||'');
       h+=renderInlineChart(cs.pts,cs.stats,cs.info.sig.name,catColor);
       h+='</div>';
