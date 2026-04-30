@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v9.0</title>
+<title>CAN分析工具 v9.1</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.0 2026-04-30 16:41</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.1 2026-04-30 16:52</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -429,6 +429,15 @@ body{display:flex;flex-direction:column}
     </div>
     <div id="aiScanSection">
       <div style="font-size:11px;color:#666;margin-bottom:8px">自动识别MCU相关信号，全面分析电机控制器状态</div>
+      <div id="aiSigSelector" style="margin-bottom:10px">
+        <div style="font-size:11px;color:#888;margin-bottom:6px">选择关注信号类别（不选则默认分析重要信号）：</div>
+        <div id="aiSigCats" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button id="aiSigAll" class="ct-btn" style="font-size:10px;padding:3px 8px">全选</button>
+          <button id="aiSigDefault" class="ct-btn" style="font-size:10px;padding:3px 8px">默认</button>
+          <button id="aiSigNone" class="ct-btn" style="font-size:10px;padding:3px 8px">清空</button>
+        </div>
+      </div>
       <button class="ai-send-btn" id="btnAIScan" style="width:100%">🔍 开始全量扫描分析</button>
     </div>
     <div id="aiDescSection" style="display:none">
@@ -2886,10 +2895,29 @@ function rProto(){
     if(S.chs.length>1)for(var ci=0;ci<chs.length;ci++)chH+='<span class="cb" style="background:'+cc(chs[ci])+'22;color:'+cc(chs[ci])+'">CH'+chs[ci]+'</span> ';
     h+='<div class="proto-card"><div class="proto-hdr"><span class="pid">0x'+def.ch+'</span><span class="pn">'+def.name+'</span>'+chH+'<span class="pi">L:'+def.dlc+' | F:'+cnt+' | S:'+def.sigs.length+'</span></div>';
     if(def.sigs.length){
-      h+='<div style="overflow-x:auto"><table class="proto-table"><thead><tr><th>信号</th><th>起始位</th><th>长度</th><th>字节序</th><th>系数</th><th>偏移</th><th>单位</th><th>范围</th></tr></thead><tbody>';
+      h+='<div style="overflow-x:auto"><table class="proto-table"><thead><tr><th>信号</th><th>起始位</th><th>长度</th><th>字节序</th><th>系数</th><th>偏移</th><th>单位</th><th>范围</th><th>协议备注</th></tr></thead><tbody>';
       for(var s=0;s<def.sigs.length;s++){
         var sig=def.sigs[s];
-        h+='<tr><td style="color:#ddd">'+sig.name+'</td><td>'+sig.start+'</td><td>'+sig.len+'</td><td>'+(sig.order===1?'Intel':'Moto')+'</td><td>'+sig.scale+'</td><td>'+sig.offset+'</td><td style="color:#666">'+sig.unit+'</td><td>'+(sig.min!==null?sig.min+'~'+sig.max:'-')+'</td></tr>';
+        // 查找协议文档中的信号描述
+        var protoNote='';
+        var sName=sig.name;
+        for(var pk in protocolData){
+          if(pk===sName||pk.toLowerCase()===sName.toLowerCase()||sName.indexOf(pk)>=0||pk.indexOf(sName)>=0){
+            var pd=protocolData[pk];
+            if(pd.values&&pd.values.length>0){
+              var vals=[];
+              for(var vi=0;vi<Math.min(pd.values.length,8);vi++){
+                vals.push(pd.values[vi].num+'='+pd.values[vi].desc);
+              }
+              protoNote=vals.join(', ');
+              if(pd.values.length>8)protoNote+='...';
+            }
+            if(pd.unit&&!sig.unit)protoNote=(protoNote?'['+pd.unit+'] ':'['+pd.unit+'] ')+protoNote;
+            if(pd.description)protoNote+=(protoNote?' · ':'')+pd.description;
+            break;
+          }
+        }
+        h+='<tr><td style="color:#ddd">'+sig.name+'</td><td>'+sig.start+'</td><td>'+sig.len+'</td><td>'+(sig.order===1?'Intel':'Moto')+'</td><td>'+sig.scale+'</td><td>'+sig.offset+'</td><td style="color:#666">'+sig.unit+'</td><td>'+(sig.min!==null?sig.min+'~'+sig.max:'-')+'</td><td style="color:#a855f7;font-size:10px;max-width:200px;word-break:break-all">'+(protoNote||'-')+'</td></tr>';
       }
       h+='</tbody></table></div>';
     }
@@ -2898,7 +2926,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v9.0 已加载 - 协议文档解析增强版');
+console.log('CAN分析工具 v9.1 已加载 - 协议文档解析增强版');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
@@ -2944,6 +2972,45 @@ console.log('CAN分析工具 v9.0 已加载 - 协议文档解析增强版');
     tag.classList.add('active');
     AI_INPUT.value=tag.dataset.q;
   });
+
+  // ===== Signal Category Selector =====
+  var DEFAULT_CATS=['speed','torque','fault','temp','voltage','current','enable','brake'];
+  var selectedCats=null; // null = default
+  function initSigSelector(){
+    var el=$('aiSigCats');if(!el)return;
+    var cats=Object.keys(MCU_SIG_PATTERNS);
+    var h='';
+    for(var i=0;i<cats.length;i++){
+      var c=cats[i],p=MCU_SIG_PATTERNS[c];
+      h+='<label style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:6px;border:0.5px solid #2a2a3a;background:#15152a;font-size:10px;cursor:pointer;user-select:none">';
+      h+='<input type="checkbox" data-cat="'+c+'" '+(DEFAULT_CATS.indexOf(c)>=0?'checked':'')+' style="accent-color:'+p.color+';width:12px;height:12px">';
+      h+='<span style="color:'+p.color+'">'+p.label+'</span></label>';
+    }
+    el.innerHTML=h;
+    el.addEventListener('change',function(){selectedCats=getSelectedCats()});
+  }
+  function getSelectedCats(){
+    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
+    var sel=[];
+    for(var i=0;i<cbs.length;i++){if(cbs[i].checked)sel.push(cbs[i].dataset.cat)}
+    return sel.length>0?sel:DEFAULT_CATS;
+  }
+  $('aiSigAll').addEventListener('click',function(){
+    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
+    for(var i=0;i<cbs.length;i++)cbs[i].checked=true;
+    selectedCats=getSelectedCats();
+  });
+  $('aiSigDefault').addEventListener('click',function(){
+    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
+    for(var i=0;i<cbs.length;i++)cbs[i].checked=DEFAULT_CATS.indexOf(cbs[i].dataset.cat)>=0;
+    selectedCats=null;
+  });
+  $('aiSigNone').addEventListener('click',function(){
+    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
+    for(var i=0;i<cbs.length;i++)cbs[i].checked=false;
+    selectedCats=[];
+  });
+  initSigSelector();
 
   // Scan button
   AI_SCAN_BTN.addEventListener('click',function(){runAnalysis('scan','')});
@@ -4036,7 +4103,13 @@ console.log('CAN分析工具 v9.0 已加载 - 协议文档解析增强版');
     }
     AI_RESULT.innerHTML='<div class="ai-loading"><div class="spinner"></div>正在分析...</div>';
 
-    var mcuSigs=identifyMCUSignals();
+    var allMcuSigs=identifyMCUSignals();
+    // Filter by selected categories
+    var cats=selectedCats||DEFAULT_CATS;
+    var mcuSigs={};
+    for(var cat in allMcuSigs){
+      mcuSigs[cat]=cats.indexOf(cat)>=0?allMcuSigs[cat]:[];
+    }
     var totalSigs=Object.keys(mcuSigs).reduce(function(n,c){return n+mcuSigs[c].length},0);
 
     if(totalSigs===0){
