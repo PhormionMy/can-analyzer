@@ -3102,10 +3102,10 @@ console.log('CAN分析工具 v9.1 已加载 - 协议文档解析增强版');
   // ===== Data Extraction =====
   function getSignalTimeSeries(sigInfo){
     var fm=fMsgs(),points=[];
-    var msgIdH=sigInfo.msgId;
+    var msgIdH=sigInfo.msg.ch||hex(d2c(+sigInfo.msgId));
     for(var i=0;i<fm.length;i++){
       var m=fm[i];
-      if(hex(m.id)===msgIdH||m.idH===msgIdH){
+      if(m.idH===msgIdH){
         var val=decodeSignal(m,sigInfo.sig);
         if(val!==null)points.push({t:m.t,v:val});
       }
