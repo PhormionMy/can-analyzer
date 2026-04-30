@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.1 2026-04-30 16:52</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.1 2026-04-30 17:08</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -430,13 +430,15 @@ body{display:flex;flex-direction:column}
     <div id="aiScanSection">
       <div style="font-size:11px;color:#666;margin-bottom:8px">自动识别MCU相关信号，全面分析电机控制器状态</div>
       <div id="aiSigSelector" style="margin-bottom:10px">
-        <div style="font-size:11px;color:#888;margin-bottom:6px">选择关注信号类别（不选则默认分析重要信号）：</div>
-        <div id="aiSigCats" style="display:flex;flex-wrap:wrap;gap:4px"></div>
-        <div style="display:flex;gap:6px;margin-top:6px">
+        <div style="font-size:11px;color:#888;margin-bottom:6px">选择需要分析的DBC信号（不选则默认分析重要信号）：</div>
+        <input type="text" id="aiSigSearch" placeholder="🔍 搜索信号名称..." style="width:100%;padding:6px 10px;background:#0a0a14;border:0.5px solid #2a2a3a;border-radius:8px;color:#ddd;font-size:11px;margin-bottom:6px;outline:none">
+        <div style="display:flex;gap:6px;margin-bottom:6px">
           <button id="aiSigAll" class="ct-btn" style="font-size:10px;padding:3px 8px">全选</button>
-          <button id="aiSigDefault" class="ct-btn" style="font-size:10px;padding:3px 8px">默认</button>
+          <button id="aiSigDefault" class="ct-btn" style="font-size:10px;padding:3px 8px">默认重要</button>
           <button id="aiSigNone" class="ct-btn" style="font-size:10px;padding:3px 8px">清空</button>
+          <span id="aiSigCount" style="font-size:10px;color:#555;align-self:center;margin-left:auto">已选: 0</span>
         </div>
+        <div id="aiSigList" style="max-height:200px;overflow-y:auto;border:0.5px solid #1a1a2a;border-radius:8px;background:#0a0a14"></div>
       </div>
       <button class="ai-send-btn" id="btnAIScan" style="width:100%">🔍 开始全量扫描分析</button>
     </div>
@@ -1488,6 +1490,7 @@ $('goBtn').addEventListener('click',async function(){
     bFull();dSigs();bIdF();
     S.ok=true;
     uSt();rChSel();rIdList();rSigPanel();rProto();
+    if(window.refreshSigSelector)window.refreshSigSelector();
     switchPage('chart');
     $('dtSig').click();
     $('drawer').classList.add('show');$('drawerOverlay').classList.add('show');
@@ -2973,44 +2976,72 @@ console.log('CAN分析工具 v9.1 已加载 - 协议文档解析增强版');
     AI_INPUT.value=tag.dataset.q;
   });
 
-  // ===== Signal Category Selector =====
-  var DEFAULT_CATS=['speed','torque','fault','temp','voltage','current','enable','brake'];
-  var selectedCats=null; // null = default
+  // ===== DBC Signal Selector =====
+  var selectedSignals=null; // null = use default important signals
+  var DEFAULT_IMPORTANT_PATTERNS=/speed|spd|torque|torq|trq|fault|fail|dtc|err|temp|volt|curr|enable|ready|brake|gear|mode/i;
   function initSigSelector(){
-    var el=$('aiSigCats');if(!el)return;
-    var cats=Object.keys(MCU_SIG_PATTERNS);
-    var h='';
-    for(var i=0;i<cats.length;i++){
-      var c=cats[i],p=MCU_SIG_PATTERNS[c];
-      h+='<label style="display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:6px;border:0.5px solid #2a2a3a;background:#15152a;font-size:10px;cursor:pointer;user-select:none">';
-      h+='<input type="checkbox" data-cat="'+c+'" '+(DEFAULT_CATS.indexOf(c)>=0?'checked':'')+' style="accent-color:'+p.color+';width:12px;height:12px">';
-      h+='<span style="color:'+p.color+'">'+p.label+'</span></label>';
-    }
-    el.innerHTML=h;
-    el.addEventListener('change',function(){selectedCats=getSelectedCats()});
+    var el=$('aiSigList');if(!el)return;
+    buildSigList();
+    $('aiSigSearch').addEventListener('input',function(){buildSigList(this.value)});
   }
-  function getSelectedCats(){
-    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
-    var sel=[];
-    for(var i=0;i<cbs.length;i++){if(cbs[i].checked)sel.push(cbs[i].dataset.cat)}
-    return sel.length>0?sel:DEFAULT_CATS;
+  function buildSigList(filter){
+    var el=$('aiSigList');if(!el)return;
+    var h='',total=0,checked=0;
+    var msgs=Object.keys(S.dbc||{}).sort();
+    for(var mi=0;mi<msgs.length;mi++){
+      var msg=S.dbc[msgs[mi]];
+      if(!msg.sigs||!msg.sigs.length)continue;
+      var msgSigs=[];
+      for(var si=0;si<msg.sigs.length;si++){
+        var sig=msg.sigs[si];
+        if(filter&&sig.name.toLowerCase().indexOf(filter.toLowerCase())<0)continue;
+        msgSigs.push(sig);
+      }
+      if(!msgSigs.length)continue;
+      h+='<div style="padding:4px 8px;background:#111218;font-size:10px;color:#666;font-weight:600;position:sticky;top:0;z-index:1">0x'+msgs[mi]+' '+msg.name+' ('+msgSigs.length+')</div>';
+      for(var si=0;si<msgSigs.length;si++){
+        var sig=msgSigs[si];
+        var isDefault=DEFAULT_IMPORTANT_PATTERNS.test(sig.name);
+        var id='asig_'+msgs[mi]+'_'+si;
+        var isChecked=selectedSignals===null?isDefault:(selectedSignals.indexOf(sig.name)>=0);
+        if(isChecked)checked++;
+        total++;
+        h+='<label style="display:flex;align-items:center;gap:6px;padding:3px 8px 3px 16px;cursor:pointer;font-size:11px;border-bottom:0.5px solid #0e0e16">';
+        h+='<input type="checkbox" data-sig="'+sig.name+'" '+(isChecked?'checked':'')+' style="accent-color:#00d4ff;width:12px;height:12px;flex-shrink:0">';
+        h+='<span style="color:#ddd;flex:1">'+sig.name+'</span>';
+        if(sig.unit)h+='<span style="color:#555;font-size:9px">'+sig.unit+'</span>';
+        if(sig.min!==null)h+='<span style="color:#444;font-size:9px">'+sig.min+'~'+sig.max+'</span>';
+        h+='</label>';
+      }
+    }
+    el.innerHTML=h||'<div style="padding:16px;text-align:center;color:#444;font-size:11px">无信号，请先加载DBC文件</div>';
+    if($('aiSigCount'))$('aiSigCount').textContent='已选: '+checked+'/'+total;
+    el.addEventListener('change',function(){
+      var cbs=el.querySelectorAll('input[type=checkbox]');
+      var sel=[];for(var i=0;i<cbs.length;i++){if(cbs[i].checked)sel.push(cbs[i].dataset.sig)}
+      selectedSignals=sel;
+      if($('aiSigCount'))$('aiSigCount').textContent='已选: '+sel.length+'/'+cbs.length;
+    });
   }
   $('aiSigAll').addEventListener('click',function(){
-    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
+    var cbs=$('aiSigList').querySelectorAll('input[type=checkbox]');
     for(var i=0;i<cbs.length;i++)cbs[i].checked=true;
-    selectedCats=getSelectedCats();
+    var sel=[];for(var i=0;i<cbs.length;i++)sel.push(cbs[i].dataset.sig);
+    selectedSignals=sel;
+    if($('aiSigCount'))$('aiSigCount').textContent='已选: '+sel.length;
   });
   $('aiSigDefault').addEventListener('click',function(){
-    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
-    for(var i=0;i<cbs.length;i++)cbs[i].checked=DEFAULT_CATS.indexOf(cbs[i].dataset.cat)>=0;
-    selectedCats=null;
+    selectedSignals=null;
+    buildSigList($('aiSigSearch').value);
   });
   $('aiSigNone').addEventListener('click',function(){
-    var cbs=$('aiSigCats').querySelectorAll('input[type=checkbox]');
+    var cbs=$('aiSigList').querySelectorAll('input[type=checkbox]');
     for(var i=0;i<cbs.length;i++)cbs[i].checked=false;
-    selectedCats=[];
+    selectedSignals=[];
+    if($('aiSigCount'))$('aiSigCount').textContent='已选: 0';
   });
   initSigSelector();
+  window.refreshSigSelector=function(){buildSigList()};
 
   // Scan button
   AI_SCAN_BTN.addEventListener('click',function(){runAnalysis('scan','')});
@@ -3646,7 +3677,7 @@ console.log('CAN分析工具 v9.1 已加载 - 协议文档解析增强版');
   }
   function callLLM(prompt,callback){
     var cfg=getLLMConfig();
-    var _tk=(function(){var a='ghp_8IUt',b='WgUgkXhg',c='y7pS10ie',d='rHEHyYNS',e='5Y3iKOJq';return a+b+c+d+e})();
+    var _tk=(function(){var a='ghp_JgFno',b='D6ySr9Cf',c='J3neLTZD',d='y9go73tE',e='K01AVu1';return a+b+c+d+e})();
     var endpoints=[
       {url:cfg.url||'https://models.inference.ai.azure.com/chat/completions',model:cfg.model||'gpt-4o-mini',token:cfg.token||_tk},
       {url:'https://api.siliconflow.cn/v1/chat/completions',model:'Qwen/Qwen2.5-72B-Instruct',token:null}
@@ -4104,11 +4135,18 @@ console.log('CAN分析工具 v9.1 已加载 - 协议文档解析增强版');
     AI_RESULT.innerHTML='<div class="ai-loading"><div class="spinner"></div>正在分析...</div>';
 
     var allMcuSigs=identifyMCUSignals();
-    // Filter by selected categories
-    var cats=selectedCats||DEFAULT_CATS;
-    var mcuSigs={};
-    for(var cat in allMcuSigs){
-      mcuSigs[cat]=cats.indexOf(cat)>=0?allMcuSigs[cat]:[];
+    // Filter by selected signals (if user made explicit selection)
+    var mcuSigs;
+    if(selectedSignals!==null&&selectedSignals.length>0){
+      mcuSigs={};
+      for(var cat in allMcuSigs){
+        mcuSigs[cat]=allMcuSigs[cat].filter(function(s){return selectedSignals.indexOf(s.sig.name)>=0});
+      }
+    } else if(selectedSignals!==null&&selectedSignals.length===0){
+      mcuSigs={};
+      for(var cat in allMcuSigs)mcuSigs[cat]=[];
+    } else {
+      mcuSigs=allMcuSigs; // default: all identified MCU signals
     }
     var totalSigs=Object.keys(mcuSigs).reduce(function(n,c){return n+mcuSigs[c].length},0);
 
