@@ -1893,7 +1893,7 @@ function updateRD(){
     }
   }else{
     $('sigInf').textContent='无信号';
-    sh='<tr><td colspan="6" class="sig-empty">该报文在DBC中无信号定义</td></tr>';
+    sh='<tr><td colspan="7" class="sig-empty">该报文在DBC中无信号定义</td></tr>';
   }
   $('sigTb').innerHTML=sh;
   $('sigTb').querySelectorAll('tr[data-full]').forEach(function(tr){
