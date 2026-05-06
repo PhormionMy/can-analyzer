@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v9.2</title>
+<title>CAN分析工具 v9.3</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.2 2026-05-06 16:40</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.3 2026-05-06 16:54</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -352,7 +352,7 @@ body{display:flex;flex-direction:column}
         <div class="empty-state" id="rawE"><div class="es-icon">📋</div><div>请选择报文ID</div><div style="font-size:11px;color:#555">在左侧菜单中选择</div></div>
         <div id="rawCards" style="display:none">
           <div class="data-card"><div class="data-card-hdr"><span class="ico">0x</span><span class="tit">原始数据</span><span class="inf" id="hxDLC">DLC:0</span></div><div class="hex-grid" id="hxG"></div></div>
-          <div class="data-card"><div class="data-card-hdr"><span class="ico">Σ</span><span class="tit">解析信号</span><span class="inf" id="sigInf">0个</span></div><div style="overflow-x:auto"><table class="sig-table"><thead><tr><th>信号名</th><th>原始值</th><th>物理值</th><th>单位</th><th>范围</th><th>位</th></tr></thead><tbody id="sigTb"></tbody></table></div></div>
+          <div class="data-card"><div class="data-card-hdr"><span class="ico">Σ</span><span class="tit">解析信号</span><span class="inf" id="sigInf">0个</span></div><div style="overflow-x:auto"><table class="sig-table"><thead><tr><th>信号名</th><th>原始值</th><th>物理值</th><th>单位</th><th>范围</th><th>位</th><th>协议值含义</th></tr></thead><tbody id="sigTb"></tbody></table></div></div>
         </div>
       </div>
     </div>
@@ -648,6 +648,75 @@ var R={i:0,dr:false};
 var rp=false;
 var _axId=0;
 var protocolData={}; // signalName -> {values:[{num,desc}],unit,description,range}
+var dbcEnums={}; // signalFullName -> {values:[{num,desc}],unit,description}
+var dbcComments={}; // signalFullName -> chinese name from CM_
+
+// Smart signal info lookup: merge protocolData + dbcEnums with fuzzy matching
+function lookupSignalInfo(sigName, msgName){
+  // msgName is optional, used for dbcEnums key like "MCU1.MCU1_MotStatus"
+  var result=null;
+  // 1. Try exact match in protocolData
+  if(protocolData[sigName])result=protocolData[sigName];
+  // 2. Try case-insensitive match in protocolData
+  if(!result)for(var pk in protocolData){
+    if(protocolData.hasOwnProperty(pk)){
+      if(pk.toLowerCase()===sigName.toLowerCase()){result=protocolData[pk];break}
+    }
+  }
+  // 3. Try substring match (either direction)
+  if(!result)for(var pk in protocolData){
+    if(protocolData.hasOwnProperty(pk)){
+      if(sigName.indexOf(pk)>=0||pk.indexOf(sigName)>=0){result=protocolData[pk];break}
+    }
+  }
+  // 4. Try stripping common prefixes and matching
+  if(!result){
+    var stripped=sigName.replace(/^(MCU\d+_|VCU\d*_|TCU\d*_|IPU_|HCU_)/i,'');
+    if(stripped!==sigName)for(var pk in protocolData){
+      if(protocolData.hasOwnProperty(pk)){
+        if(pk.toLowerCase()===stripped.toLowerCase()||stripped.toLowerCase().indexOf(pk.toLowerCase())>=0||pk.toLowerCase().indexOf(stripped.toLowerCase())>=0){
+          result=protocolData[pk];break;
+        }
+      }
+    }
+  }
+  // 5. Try matching without underscores
+  if(!result){
+    var noUnder=sigName.replace(/_/g,'').toLowerCase();
+    for(var pk in protocolData){
+      if(protocolData.hasOwnProperty(pk)){
+        if(pk.replace(/_/g,'').toLowerCase()===noUnder){result=protocolData[pk];break}
+      }
+    }
+  }
+  // 6. Try dbcEnums with msgName.sigName key
+  if(!result&&msgName){
+    var fullName=msgName+'.'+sigName;
+    if(dbcEnums[fullName])result=dbcEnums[fullName];
+  }
+  // 7. Try dbcEnums with just sigName
+  if(!result)for(var dk in dbcEnums){
+    if(dbcEnums.hasOwnProperty(dk)){
+      if(dk.endsWith('.'+sigName)||dk===sigName){result=dbcEnums[dk];break}
+    }
+  }
+  // 8. Try dbcComments for Chinese name matching
+  if(!result&&msgName){
+    var fullName=msgName+'.'+sigName;
+    if(dbcComments[fullName])result={values:[],unit:'',description:dbcComments[fullName]};
+  }
+  return result;
+}
+
+// Get enum description for a specific signal value
+function getEnumDesc(sigName, msgName, val){
+  var info=lookupSignalInfo(sigName, msgName);
+  if(!info||!info.values)return null;
+  for(var i=0;i<info.values.length;i++){
+    if(info.values[i].num===val)return info.values[i].desc;
+  }
+  return null;
+}
 
 // ====== Helpers ======
 function $(id){return document.getElementById(id)}
@@ -952,15 +1021,16 @@ function parseWordDoc(arrayBuffer){
       var line=lines[i].trim();
       if(!line){if(inTable&&tableRows.length>1){var p=parseProtoDocSignalTable(tableRows);for(var k in p)if(p.hasOwnProperty(k))result[k]=p[k];tableRows=[];inTable=false}continue;
       }
-      // Detect table rows (tab or multi-space separated)
-      var cells=line.split(/\t+|\s{3,}/);
-      if(cells.length>=2){
+      // Detect table rows (tab or multi-space or pipe separated)
+      var cells=line.split(/\t+|\s{3,}|\|/);
+      if(cells.length>=3){
+        // Check if it looks like a Signal|Value|Meaning table
         inTable=true;
-        tableRows.push(cells);
+        tableRows.push(cells.filter(function(c){return c.trim()}));
       }else{
         if(inTable&&tableRows.length>1){var p=parseProtoDocSignalTable(tableRows);for(var k in p)if(p.hasOwnProperty(k))result[k]=p[k];tableRows=[]}
         inTable=false;
-        // Try inline pattern: "SignalName: 0=desc1, 1=desc2"
+        // Try inline pattern: "SignalName: 0=desc1, 1=desc2" or Chinese "电机状态: 0=初始化, 1=等待"
         var m=line.match(/^([A-Za-z_\u4e00-\u9fff][\w\u4e00-\u9fff]*)\s*[:：]\s*(.+)/);
         if(m){
           var sigName=m[1],descPart=m[2];
@@ -972,9 +1042,43 @@ function parseWordDoc(arrayBuffer){
           }
           if(entry.values.length>0)result[sigName]=entry;
         }
+        // Try section-header pattern: line is just a signal name, next lines have value mappings
+        var hdrM=line.match(/^([A-Za-z_][\w]*)\s*$/);
+        if(hdrM){
+          // Peek ahead for value lines like "0 : description" or "0 = description"
+          var peekVals=[];
+          for(var pi=i+1;pi<Math.min(i+20,lines.length);pi++){
+            var pl=lines[pi].trim();
+            if(!pl)break;
+            var pvm=pl.match(/^(\d+)\s*[=:：]\s*(.+)/);
+            if(pvm){peekVals.push({num:parseInt(pvm[1]),desc:pvm[2].trim()})}
+            else if(peekVals.length>0)break;
+            else break;
+          }
+          if(peekVals.length>0){
+            result[hdrM[1]]={values:peekVals,unit:'',description:'',range:''};
+          }
+        }
       }
     }
     if(inTable&&tableRows.length>1){var p=parseProtoDocSignalTable(tableRows);for(var k in p)if(p.hasOwnProperty(k))result[k]=p[k]}
+    // Multi-line enum blocks: scan again for "value : description" patterns grouped by signal
+    for(var i2=0;i2<lines.length;i2++){
+      var l2=lines[i2].trim();
+      var eM=l2.match(/^([A-Za-z_][\w]+)\s*$/);
+      if(eM&&!result[eM[1]]){
+        var eVals=[];
+        for(var ei=i2+1;ei<Math.min(i2+30,lines.length);ei++){
+          var el=lines[ei].trim();
+          if(!el)break;
+          var evm=el.match(/^(\d+)\s*[=:：]\s*(.+)/);
+          if(evm)eVals.push({num:parseInt(evm[1]),desc:evm[2].trim()});
+          else if(eVals.length>0)break;
+          else break;
+        }
+        if(eVals.length>0)result[eM[1]]={values:eVals,unit:'',description:'',range:''};
+      }
+    }
     return result;
   });
 }
@@ -993,11 +1097,29 @@ function parsePdfDoc(arrayBuffer){
       for(var i=0;i<lines.length;i++){
         var line=lines[i].trim();
         if(!line){if(inTable&&tableRows.length>1){var p=parseProtoDocSignalTable(tableRows);for(var k in p)if(p.hasOwnProperty(k))result[k]=p[k];tableRows=[];inTable=false}continue}
-        var cells=line.split(/\t+|\s{3,}/);
-        if(cells.length>=2){inTable=true;tableRows.push(cells)}
-        else{
+        // Detect table rows: tab, multi-space, or pipe separated
+        var cells=line.split(/\t+|\s{3,}|\|/).filter(function(c){return c.trim()});
+        if(cells.length>=3){
+          // PDF tables often have pipe separators or 3+ columns
+          inTable=true;
+          tableRows.push(cells);
+        }else if(cells.length===2){
+          // Two-column: could be value=desc table continuation
+          if(inTable){tableRows.push(cells)}
+          else{
+            // Check if first cell is a number (value table continuation)
+            if(/^\d+$/.test(cells[0].trim())){
+              inTable=true;
+              tableRows.push(cells);
+            }else{
+              inTable=true;
+              tableRows.push(cells);
+            }
+          }
+        }else{
           if(inTable&&tableRows.length>1){var p=parseProtoDocSignalTable(tableRows);for(var k in p)if(p.hasOwnProperty(k))result[k]=p[k];tableRows=[]}
           inTable=false;
+          // Try inline pattern: "SignalName: 0=desc1, 1=desc2" or Chinese patterns
           var m=line.match(/^([A-Za-z_\u4e00-\u9fff][\w\u4e00-\u9fff]*)\s*[:：]\s*(.+)/);
           if(m){
             var sigName=m[1],descPart=m[2];
@@ -1008,6 +1130,20 @@ function parsePdfDoc(arrayBuffer){
               if(pm)entry.values.push({num:parseInt(pm[1]),desc:pm[2].trim()});
             }
             if(entry.values.length>0)result[sigName]=entry;
+          }
+          // Try section-header pattern
+          var hdrM=line.match(/^([A-Za-z_][\w]+)\s*$/);
+          if(hdrM){
+            var peekVals=[];
+            for(var pi=i+1;pi<Math.min(i+20,lines.length);pi++){
+              var pl=lines[pi].trim();
+              if(!pl)break;
+              var pvm=pl.match(/^(\d+)\s*[=:：]\s*(.+)/);
+              if(pvm){peekVals.push({num:parseInt(pvm[1]),desc:pvm[2].trim()})}
+              else if(peekVals.length>0)break;
+              else break;
+            }
+            if(peekVals.length>0)result[hdrM[1]]={values:peekVals,unit:'',description:'',range:''};
           }
         }
       }
@@ -1208,9 +1344,76 @@ function loadBuiltinDbc(name){
 function pDBC(c){
   if(c.charCodeAt(0)===0xFEFF)c=c.substring(1);
   var ls=c.split(/\r?\n/),mc=0,sc=0,cm=null;
+  dbcEnums={};dbcComments={};
+  var valTables={}; // VAL_TABLE_ name -> [{num,desc}]
+  // Pass 1: parse BO_, SG_, CM_, VAL_TABLE_, VAL_
   for(var i=0;i<ls.length;i++){
     var l=ls[i].trim();
     if(l.length<3||l[0]==='/'||l[0]==='#'||l[0]===';')continue;
+    // Handle multi-line entries (CM_ with \n in quotes)
+    if(l.indexOf('CM_ SG_')===0){
+      var cmMatch=l.match(/CM_\s+SG_\s+(\d+)\s+(\S+)\s+"([^"]*)"/);
+      if(cmMatch){
+        var cmMsgId=+cmMatch[1],cmSigName=cmMatch[2],cmText=cmMatch[3];
+        var cmMsgDef=S.dbc[cmMsgId];
+        if(cmMsgDef){
+          var cmFullName=cmMsgDef.name+'.'+cmSigName;
+          // Extract Chinese name from CM_ text if it contains Chinese chars
+          if(/[\u4e00-\u9fff]/.test(cmText)){
+            dbcComments[cmFullName]=cmText;
+          }
+          // Also try to parse value descriptions from CM_ (e.g. "0 = disable\n1 = enable")
+          if(!dbcEnums[cmFullName]){
+            var cmVals=[];
+            var cmLines=cmText.split(/\n/);
+            for(var cli=0;cli<cmLines.length;cli++){
+              var cmValMatch=cmLines[cli].match(/^\s*(\d+)\s*[=:]\s*(.+)/);
+              if(cmValMatch)cmVals.push({num:parseInt(cmValMatch[1]),desc:cmValMatch[2].trim()});
+            }
+            if(cmVals.length>0)dbcEnums[cmFullName]={values:cmVals,unit:'',description:cmText};
+          }
+        }
+      }
+      continue;
+    }
+    if(l.indexOf('VAL_TABLE_')===0){
+      // VAL_TABLE_ tableName 2 "desc2" 1 "desc1" 0 "desc0" ;
+      var vtMatch=l.match(/VAL_TABLE_\s+(\S+)\s+(.*?)\s*;\s*$/);
+      if(vtMatch){
+        var vtName=vtMatch[1],vtRest=vtMatch[2];
+        var vtPairs=vtRest.match(/(\d+)\s+"([^"]*)"/g);
+        if(vtPairs){
+          var vtVals=[];
+          for(var vti=0;vti<vtPairs.length;vti++){
+            var vtm=vtPairs[vti].match(/(\d+)\s+"([^"]*)"/);
+            if(vtm)vtVals.push({num:parseInt(vtm[1]),desc:vtm[2]});
+          }
+          valTables[vtName]=vtVals;
+        }
+      }
+      continue;
+    }
+    if(l.indexOf('VAL_')===0&&l.indexOf('VAL_TABLE_')!==0&&l.indexOf('VAL_ SG_')!==0){
+      // VAL_ msgId signalName 2 "desc2" 1 "desc1" 0 "desc0" ;
+      var valMatch=l.match(/^VAL_\s+(\d+)\s+(\S+)\s+(.*?)\s*;\s*$/);
+      if(valMatch){
+        var valMsgId=+valMatch[1],valSigName=valMatch[2],valRest=valMatch[3];
+        var valPairs=valRest.match(/(\d+)\s+"([^"]*)"/g);
+        if(valPairs){
+          var valVals=[];
+          for(var vi=0;vi<valPairs.length;vi++){
+            var vm=valPairs[vi].match(/(\d+)\s+"([^"]*)"/);
+            if(vm)valVals.push({num:parseInt(vm[1]),desc:vm[2]});
+          }
+          var valMsgDef=S.dbc[valMsgId];
+          if(valMsgDef){
+            var valFullName=valMsgDef.name+'.'+valSigName;
+            dbcEnums[valFullName]={values:valVals,unit:'',description:''};
+          }
+        }
+      }
+      continue;
+    }
     if(l.indexOf('BO_')===0){
       var m=l.match(/BO_\s+(\d+)\s+(\S+)\s*:\s*(\d+)/);
       if(m){
@@ -1247,6 +1450,17 @@ function pDBC(c){
           start:sb,len:bl,order:bo,sign:sg,scale:factor,offset:offset,
           min:mn,max:mx,unit:unit
         });sc++;
+      }
+    }
+  }
+  // Apply VAL_TABLE_ references (if VAL_ entry uses a table name, resolve it)
+  for(var ek in dbcEnums){
+    if(dbcEnums.hasOwnProperty(ek)){
+      var ev=dbcEnums[ek];
+      if(ev.values.length===1&&valTables[ev.values[0].desc]){
+        // Single entry whose desc matches a table name -> replace
+        var tVals=valTables[ev.values[0].desc];
+        dbcEnums[ek]={values:tVals,unit:ev.unit||'',description:ev.description||''};
       }
     }
   }
@@ -1663,7 +1877,19 @@ function updateRD(){
     $('sigInf').textContent=sigs.length+'个信号';
     for(var j=0;j<sigs.length;j++){
       var sg=sigs[j],isH2=hlF===sg.full,col=ac(j),rs=(sg.min!==null?sg.min+'~'+sg.max:'-');
-      sh+='<tr class="'+(isH2?'hl':'')+'" style="--hb:'+col+'18" data-full="'+sg.full+'"><td style="color:'+col+'">'+sg.name+'</td><td>'+sg.raw+'</td><td style="color:#00d4ff;font-weight:bold">'+sg.phys.toFixed(3)+'</td><td style="color:#666">'+sg.unit+'</td><td style="color:#555">'+rs+'</td><td style="color:#555">'+sg.start+'|'+sg.len+'</td></tr>';
+      // 查找协议枚举值描述
+      var enumDesc='';
+      if(def){
+        var eInfo=lookupSignalInfo(sg.name, def.name);
+        if(eInfo&&eInfo.values&&eInfo.values.length>0){
+          var rawVal=Math.round(sg.raw);
+          for(var ei=0;ei<eInfo.values.length;ei++){
+            if(eInfo.values[ei].num===rawVal){enumDesc=eInfo.values[ei].desc;break}
+          }
+          if(!enumDesc)enumDesc=eInfo.values.slice(0,3).map(function(v){return v.num+'='+v.desc}).join(', ')+('...');
+        }
+      }
+      sh+='<tr class="'+(isH2?'hl':'')+'" style="--hb:'+col+'18" data-full="'+sg.full+'"><td style="color:'+col+'">'+sg.name+'</td><td>'+sg.raw+'</td><td style="color:#00d4ff;font-weight:bold">'+sg.phys.toFixed(3)+'</td><td style="color:#666">'+sg.unit+'</td><td style="color:#555">'+rs+'</td><td style="color:#555">'+sg.start+'|'+sg.len+'</td><td style="color:#a855f7;font-size:10px">'+(enumDesc||'-')+'</td></tr>';
     }
   }else{
     $('sigInf').textContent='无信号';
@@ -2901,24 +3127,21 @@ function rProto(){
       h+='<div style="overflow-x:auto"><table class="proto-table"><thead><tr><th>信号</th><th>起始位</th><th>长度</th><th>字节序</th><th>系数</th><th>偏移</th><th>单位</th><th>范围</th><th>协议备注</th></tr></thead><tbody>';
       for(var s=0;s<def.sigs.length;s++){
         var sig=def.sigs[s];
-        // 查找协议文档中的信号描述
+        // 查找协议文档中的信号描述（合并protocolData + dbcEnums，智能匹配）
         var protoNote='';
         var sName=sig.name;
-        for(var pk in protocolData){
-          if(pk===sName||pk.toLowerCase()===sName.toLowerCase()||sName.indexOf(pk)>=0||pk.indexOf(sName)>=0){
-            var pd=protocolData[pk];
-            if(pd.values&&pd.values.length>0){
-              var vals=[];
-              for(var vi=0;vi<Math.min(pd.values.length,8);vi++){
-                vals.push(pd.values[vi].num+'='+pd.values[vi].desc);
-              }
-              protoNote=vals.join(', ');
-              if(pd.values.length>8)protoNote+='...';
+        var pd=lookupSignalInfo(sName, def.name);
+        if(pd){
+          if(pd.values&&pd.values.length>0){
+            var vals=[];
+            for(var vi=0;vi<Math.min(pd.values.length,8);vi++){
+              vals.push(pd.values[vi].num+'='+pd.values[vi].desc);
             }
-            if(pd.unit&&!sig.unit)protoNote=(protoNote?'['+pd.unit+'] ':'['+pd.unit+'] ')+protoNote;
-            if(pd.description)protoNote+=(protoNote?' · ':'')+pd.description;
-            break;
+            protoNote=vals.join(', ');
+            if(pd.values.length>8)protoNote+='...';
           }
+          if(pd.unit&&!sig.unit)protoNote=(protoNote?'['+pd.unit+'] ':'['+pd.unit+'] ')+protoNote;
+          if(pd.description)protoNote+=(protoNote?' · ':'')+pd.description;
         }
         h+='<tr><td style="color:#ddd">'+sig.name+'</td><td>'+sig.start+'</td><td>'+sig.len+'</td><td>'+(sig.order===1?'Intel':'Moto')+'</td><td>'+sig.scale+'</td><td>'+sig.offset+'</td><td style="color:#666">'+sig.unit+'</td><td>'+(sig.min!==null?sig.min+'~'+sig.max:'-')+'</td><td style="color:#a855f7;font-size:10px;max-width:200px;word-break:break-all">'+(protoNote||'-')+'</td></tr>';
       }
@@ -2929,7 +3152,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v9.2 已加载 - 协议文档解析增强版');
+console.log('CAN分析工具 v9.3 已加载 - 协议文档解析增强版 + DBC枚举解析');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
@@ -3635,16 +3858,24 @@ console.log('CAN分析工具 v9.2 已加载 - 协议文档解析增强版');
       ctx+='## 用户问题描述\n"'+userQuery+'"\n\n';
     }
 
-    // ===== 协议文档信号描述 =====
+    // ===== 协议文档信号描述（合并protocolData + dbcEnums）=====
+    var allSignalInfo={};
     var protoKeys=Object.keys(protocolData);
-    if(protoKeys.length>0){
+    for(var pk=0;pk<protoKeys.length;pk++){allSignalInfo[protoKeys[pk]]=protocolData[protoKeys[pk]]}
+    var dbcEnumKeys=Object.keys(dbcEnums);
+    for(var dk=0;dk<dbcEnumKeys.length;dk++){
+      var k=dbcEnumKeys[dk];
+      if(!allSignalInfo[k]||dbcEnums[k].values.length>allSignalInfo[k].values.length)allSignalInfo[k]=dbcEnums[k];
+    }
+    var allKeys=Object.keys(allSignalInfo);
+    if(allKeys.length>0){
       ctx+='## 协议文档信号值描述\n';
-      ctx+='以下信号值含义来自用户上传的协议说明文档，分析时请参考：\n';
+      ctx+='以下信号值含义来自协议文档和DBC枚举定义，分析时请参考：\n';
       var matchedCnt=0;
-      for(var pk=0;pk<protoKeys.length;pk++){
-        var pName=protoKeys[pk];
-        var pInfo=protocolData[pName];
-        if(pInfo.values.length>0){
+      for(var pk=0;pk<allKeys.length;pk++){
+        var pName=allKeys[pk];
+        var pInfo=allSignalInfo[pName];
+        if(pInfo.values&&pInfo.values.length>0){
           ctx+='- **'+pName+'**';
           if(pInfo.unit)ctx+=' ('+pInfo.unit+')';
           if(pInfo.description)ctx+=': '+pInfo.description;
@@ -3655,7 +3886,7 @@ console.log('CAN分析工具 v9.2 已加载 - 协议文档解析增强版');
           matchedCnt++;
         }
       }
-      ctx+='共 '+protoKeys.length+' 个信号有协议描述，其中 '+matchedCnt+' 个含值映射。\n\n';
+      ctx+='共 '+allKeys.length+' 个信号有协议描述，其中 '+matchedCnt+' 个含值映射。\n\n';
     }
 
     ctx+='## 请分析\n';
