@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v9.7</title>
+<title>CAN分析工具 v9.8</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.7 2026-05-07 10:00</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.8 2026-05-07 10:20</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -3152,7 +3152,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v9.7 已加载 - 信号数据匹配修复 + 无数据信号展示');
+console.log('CAN分析工具 v9.8 已加载 - 信号分析结果完整展示');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
@@ -4069,147 +4069,168 @@ console.log('CAN分析工具 v9.7 已加载 - 信号数据匹配修复 + 无数�
       return mcuSigs[b].length-mcuSigs[a].length;
     });
 
-    var h='<div class="ai-result" style="margin-top:8px">';
-    h+='<div class="ai-result-title">📈 重要信号量逐项分析</div>';
-
-    var chartCount=0;
-    var maxCharts=12;
-    var totalAnalyzed=0;
-    var totalNoData=0;
-
+    // Pre-compute data availability for ALL signals
+    var allSigData=[];
+    var totalWithData=0,totalNoData=0;
     for(var ci=0;ci<sortedCats.length;ci++){
       var cat=sortedCats[ci];
       var sigs=mcuSigs[cat];
       if(!sigs||sigs.length===0)continue;
       var isFocus=focusCats.indexOf(cat)>=0;
-      var catLabel=MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].label:cat;
-      var catColor=MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].color:'#00d4ff';
-
-      // Collect all signals with data, sorted by importance (variance)
-      var sigDataList=[];
-      var noDataSigs=[];
       for(var i=0;i<sigs.length;i++){
         var pts=getSignalTimeSeries(sigs[i]);
-        if(!pts||pts.length<3){noDataSigs.push(sigs[i]);continue}
-        var stats=analyzeStats(pts);
-        if(!stats){noDataSigs.push(sigs[i]);continue}
-        var score=stats.std+stats.range*0.1+(isFocus?1000:0);
-        sigDataList.push({sig:sigs[i],pts:pts,stats:stats,score:score});
-      }
-      // Always show category even if no time series data
-      if(sigDataList.length===0&&noDataSigs.length===0)continue;
-      sigDataList.sort(function(a,b){return b.score-a.score});
-
-      // Category header
-      h+='<div style="margin:10px 0 4px;padding:6px 8px;background:'+(isFocus?'#1a0a2e':'#0e0e16')+';border-radius:8px;border:0.5px solid '+(isFocus?'#a855f744':'#1a1a2a')+'">';
-      h+='<div style="font-size:11px;font-weight:600;color:'+(isFocus?'#a855f7':'#aaa')+'">'+(isFocus?'⭐ ':'')+catLabel+' ('+sigDataList.length+'个有数据'+(noDataSigs.length>0?' / '+noDataSigs.length+'个无数据':'')+'，共'+sigs.length+'个信号)'+(isFocus?' [重点关注]':'')+'</div>';
-      h+='</div>';
-
-      // Analyze EACH signal in this category (up to 6)
-      var maxPerCat=6;
-      for(var si=0;si<Math.min(sigDataList.length,maxPerCat);si++){
-        var sd=sigDataList[si];
-        var sig=sd.sig, pts=sd.pts, stats=sd.stats;
-
-        // Per-signal health assessment
-        var sigHealth='normal';
-        var sigHealthLabel='正常';
-        var sigHealthColor='#00ff88';
-        var issues=[];
-        if(stats.spikes.length>3){sigHealth='warning';issues.push(stats.spikes.length+'个异常尖峰');}
-        if(stats.spikes.length>8){sigHealth='critical';}
-        if(stats.std>stats.mean*0.3&&stats.mean!==0){sigHealth=sigHealth==='critical'?'critical':'warning';issues.push('高波动(σ/μ='+(stats.std/Math.abs(stats.mean)*100).toFixed(0)+'%)');}
-        if(stats.n>20){
-          var trendDelta=stats.last.v-stats.first.v;
-          if(Math.abs(trendDelta)>stats.std*2){sigHealth=sigHealth==='critical'?'critical':'warning';issues.push('显著趋势变化');}
-        }
-        if(stats.suddenChanges.length>0){issues.push(stats.suddenChanges.length+'次突变');}
-        if(sigHealth==='critical')sigHealthLabel='异常';
-        else if(sigHealth==='warning')sigHealthLabel='警告';
-        sigHealthColor=sigHealth==='critical'?'#ff6b6b':sigHealth==='warning'?'#ffa94d':'#00ff88';
-
-        // Signal card
-        h+='<div style="margin:4px 8px;padding:6px 8px;background:#0a0a14;border-radius:8px;border:0.5px solid '+(sigHealth==='critical'?'#ff6b6b33':sigHealth==='warning'?'#ffa94d33':'#1a1a2a')+'">';
-
-        // Signal header: name + status badge
-        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
-        h+='<div style="display:flex;align-items:center;gap:6px">';
-        h+='<span style="font-size:10px;color:'+catColor+';font-weight:600">'+sig.name+'</span>';
-        if(sig.unit)h+='<span style="font-size:9px;color:#555">('+sig.unit+')</span>';
-        h+='</div>';
-        h+='<div style="display:flex;align-items:center;gap:4px">';
-        h+='<span style="font-size:8px;padding:1px 5px;border-radius:4px;background:'+sigHealthColor+'22;color:'+sigHealthColor+';border:0.5px solid '+sigHealthColor+'44">'+sigHealthLabel+'</span>';
-        h+='<span style="font-size:8px;color:#444">'+sig.msg.name+'</span>';
-        h+='</div>';
-        h+='</div>';
-
-        // Stats row
-        h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin:3px 0">';
-        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#4dabf7">最小 '+stats.min.toFixed(2)+'</span>';
-        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#00ff88">最大 '+stats.max.toFixed(2)+'</span>';
-        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#ffd700">均值 '+stats.mean.toFixed(2)+'</span>';
-        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#ffa94d">σ '+stats.std.toFixed(2)+'</span>';
-        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#e599f7">Δ '+stats.range.toFixed(2)+'</span>';
-        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#868e96">'+stats.n+'帧</span>';
-        if(stats.n>10){
-          var td=stats.last.v-stats.first.v;
-          if(Math.abs(td)>stats.std*0.5){
-            h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:'+(td>0?'#ff6b9d':'#4dabf7')+'">'+(td>0?'↑':'↓')+Math.abs(td).toFixed(2)+'</span>';
+        if(pts&&pts.length>=3){
+          var stats=analyzeStats(pts);
+          if(stats){
+            var score=stats.std+stats.range*0.1+(isFocus?1000:0)+(stats.spikes.length>0?500:0)+(stats.suddenChanges.length>0?300:0);
+            allSigData.push({cat:cat,sig:sigs[i],pts:pts,stats:stats,score:score,hasData:true});
+            totalWithData++;continue;
           }
         }
-        if(stats.spikes.length>0){
-          h+='<span style="background:#2d0a0a;padding:1px 6px;border-radius:4px;font-size:9px;color:#ff6b6b">⚠'+stats.spikes.length+'尖峰</span>';
+        allSigData.push({cat:cat,sig:sigs[i],pts:null,stats:null,score:0,hasData:false});
+        totalNoData++;
+      }
+    }
+    allSigData.sort(function(a,b){return b.score-a.score});
+
+    var h='<div class="ai-result" style="margin-top:8px">';
+    h+='<div class="ai-result-title">\u{1F4C8} 重要信号量逐项分析</div>';
+
+    // Diagnostic summary
+    var totalSigs=totalWithData+totalNoData;
+    var fm=fMsgs();
+    var dbcMsgCnt=Object.keys(S.dbc).length;
+    h+='<div style="padding:8px;background:#0e0e16;border-radius:8px;margin-bottom:8px;border:0.5px solid #1a1a2a">';
+    h+='<div style="font-size:11px;color:#aaa;margin-bottom:4px">\u{1F4CA} 数据概览</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    h+='<span style="background:#0a1628;padding:2px 8px;border-radius:6px;font-size:10px;color:#4dabf7">DBC报文 '+dbcMsgCnt+' 个</span>';
+    h+='<span style="background:#0a1628;padding:2px 8px;border-radius:6px;font-size:10px;color:#4dabf7">ASC帧 '+fm.length+' 个</span>';
+    h+='<span style="background:#0a1628;padding:2px 8px;border-radius:6px;font-size:10px;color:#00ff88">已识别信号 '+totalSigs+' 个</span>';
+    h+='<span style="background:#0a1628;padding:2px 8px;border-radius:6px;font-size:10px;color:#ffd700">有数据 '+totalWithData+' 个</span>';
+    if(totalNoData>0)h+='<span style="background:#2d1a0a;padding:2px 8px;border-radius:6px;font-size:10px;color:#ffa94d">无数据 '+totalNoData+' 个</span>';
+    h+='</div></div>';
+
+    if(totalSigs===0){
+      h+='<div style="text-align:center;color:#666;padding:16px;font-size:12px">未在DBC中匹配到MCU相关信号。请确认DBC文件包含电机控制器信号定义。</div>';
+      h+='</div>';return h;
+    }
+
+    var chartCount=0,maxCharts=15;
+    var shownCats={};
+    var totalAnalyzed=0;
+
+    for(var si=0;si<allSigData.length;si++){
+      var sd=allSigData[si];
+      var cat=sd.cat;
+      var isFocus=focusCats.indexOf(cat)>=0;
+      var catColor=MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].color:'#00d4ff';
+
+      if(!shownCats[cat]){
+        shownCats[cat]=true;
+        var catLabel=MCU_SIG_PATTERNS[cat]?MCU_SIG_PATTERNS[cat].label:cat;
+        var catWithData=allSigData.filter(function(x){return x.cat===cat&&x.hasData}).length;
+        var catNoData=allSigData.filter(function(x){return x.cat===cat&&!x.hasData}).length;
+        h+='<div style="margin:10px 0 4px;padding:6px 8px;background:'+(isFocus?'#1a0a2e':'#0e0e16')+';border-radius:8px;border:0.5px solid '+(isFocus?'#a855f744':'#1a1a2a')+'">';
+        h+='<div style="font-size:11px;font-weight:600;color:'+(isFocus?'#a855f7':'#aaa')+'">'+(isFocus?'\u2B50 ':'')+catLabel+' ('+catWithData+'个有数据'+(catNoData>0?' / '+catNoData+'个仅DBC':'')+')'+(isFocus?' [重点关注]':'')+'</div>';
+        h+='</div>';
+      }
+
+      var sig=sd.sig;
+
+      if(sd.hasData){
+        var pts=sd.pts,stats=sd.stats;
+        var sigHealth='normal',sigHealthLabel='正常',sigHealthColor='#00ff88',issues=[];
+        if(stats.spikes.length>3){sigHealth='warning';issues.push(stats.spikes.length+'个异常尖峰(>3\u03C3)');}
+        if(stats.spikes.length>8){sigHealth='critical';}
+        if(stats.mean!==0&&stats.std>Math.abs(stats.mean)*0.3){sigHealth=sigHealth==='critical'?'critical':'warning';issues.push('高波动 \u03C3/\u03BC='+(stats.std/Math.abs(stats.mean)*100).toFixed(0)+'%');}
+        if(stats.n>10){
+          var trendDelta=stats.last.v-stats.first.v;
+          if(Math.abs(trendDelta)>stats.std*2){sigHealth=sigHealth==='critical'?'critical':'warning';issues.push('显著趋势 '+(trendDelta>0?'\u2191':'\u2193')+Math.abs(trendDelta).toFixed(2));}
         }
-        if(stats.suddenChanges.length>0){
-          h+='<span style="background:#2d1a0a;padding:1px 6px;border-radius:4px;font-size:9px;color:#ffa94d">⚡'+stats.suddenChanges.length+'突变</span>';
-        }
+        if(stats.suddenChanges.length>0){issues.push(stats.suddenChanges.length+'次突变');}
+        if(sigHealth==='critical')sigHealthLabel='异常';else if(sigHealth==='warning')sigHealthLabel='警告';
+        sigHealthColor=sigHealth==='critical'?'#ff6b6b':sigHealth==='warning'?'#ffa94d':'#00ff88';
+
+        h+='<div style="margin:4px 8px;padding:8px;background:#0a0a14;border-radius:8px;border:0.5px solid '+(sigHealth==='critical'?'#ff6b6b33':sigHealth==='warning'?'#ffa94d33':'#1a1a2a')+'">';
+
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+        h+='<div style="display:flex;align-items:center;gap:6px">';
+        h+='<span style="font-size:11px;color:'+catColor+';font-weight:700">'+sig.name+'</span>';
+        if(sig.unit)h+='<span style="font-size:9px;color:#666">('+sig.unit+')</span>';
+        h+='</div><div style="display:flex;align-items:center;gap:4px">';
+        h+='<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:'+sigHealthColor+'22;color:'+sigHealthColor+';border:0.5px solid '+sigHealthColor+'44;font-weight:600">'+sigHealthLabel+'</span>';
+        h+='<span style="font-size:8px;color:#444">'+sig.msg.name+'</span>';
+        h+='</div></div>';
+
+        h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin:4px 0">';
+        h+='<span style="background:#0e1525;padding:2px 7px;border-radius:5px;font-size:9px;color:#4dabf7"><b>最小</b> '+stats.min.toFixed(2)+'</span>';
+        h+='<span style="background:#0e1525;padding:2px 7px;border-radius:5px;font-size:9px;color:#00ff88"><b>最大</b> '+stats.max.toFixed(2)+'</span>';
+        h+='<span style="background:#0e1525;padding:2px 7px;border-radius:5px;font-size:9px;color:#ffd700"><b>均值</b> '+stats.mean.toFixed(2)+'</span>';
+        h+='<span style="background:#0e1525;padding:2px 7px;border-radius:5px;font-size:9px;color:#ffa94d"><b>标准差</b> '+stats.std.toFixed(2)+'</span>';
+        h+='<span style="background:#0e1525;padding:2px 7px;border-radius:5px;font-size:9px;color:#e599f7"><b>极差</b> '+stats.range.toFixed(2)+'</span>';
+        h+='<span style="background:#0e1525;padding:2px 7px;border-radius:5px;font-size:9px;color:#868e96">'+stats.n+'帧</span>';
         h+='</div>';
 
-        if(issues.length>0){
-          h+='<div style="font-size:9px;color:'+sigHealthColor+';margin:2px 0">⚠ '+issues.join(' | ')+'</div>';
+        var extraRow='';
+        if(stats.n>1){
+          var changeDelta=stats.last.v-stats.first.v;
+          extraRow+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:9px;color:#a855f7"><b>总变化</b> '+(changeDelta>=0?'+':'')+changeDelta.toFixed(2)+'</span>';
+          extraRow+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:9px;color:#69db7c"><b>平均变化率</b> '+stats.meanDiff.toFixed(3)+'/帧</span>';
+          extraRow+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:9px;color:#ff922b"><b>最大跳变</b> '+stats.maxDiff.toFixed(2)+'</span>';
+          if(stats.duration>0){
+            var rate=changeDelta/stats.duration;
+            extraRow+='<span style="background:#0a1628;padding:2px 7px;border-radius:5px;font-size:9px;color:#74c0fc"><b>变化速率</b> '+rate.toFixed(3)+'/s</span>';
+          }
+        }
+        if(extraRow)h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0">'+extraRow+'</div>';
+
+        if(stats.spikes.length>0||stats.suddenChanges.length>0){
+          h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin:2px 0">';
+          for(var pi=0;pi<Math.min(stats.spikes.length,3);pi++){
+            var sp=stats.spikes[pi];
+            h+='<span style="background:#2d0a0a;padding:2px 7px;border-radius:5px;font-size:9px;color:#ff6b6b">\u26A0 尖峰@'+sp.t.toFixed(2)+'s 值='+sp.v.toFixed(2)+'</span>';
+          }
+          for(var ci2=0;ci2<Math.min(stats.suddenChanges.length,3);ci2++){
+            var sc=stats.suddenChanges[ci2];
+            h+='<span style="background:#2d1a0a;padding:2px 7px;border-radius:5px;font-size:9px;color:#ffa94d">\u26A1 突变@'+sc.t.toFixed(2)+'s \u0394='+sc.delta.toFixed(2)+'</span>';
+          }
+          h+='</div>';
         }
 
-        // Waveform chart (for top signals)
-        if(chartCount<maxCharts&&si<3){
+        if(issues.length>0){
+          h+='<div style="font-size:9px;color:'+sigHealthColor+';margin:3px 0;font-weight:600">\u26A0 '+issues.join(' | ')+'</div>';
+        }
+
+        if(chartCount<maxCharts){
           h+=renderInlineChart(pts,stats,sig.name,catColor);
           chartCount++;
         }
 
         h+='</div>';
         totalAnalyzed++;
-      }
-      if(sigDataList.length>maxPerCat){
-        h+='<div style="font-size:9px;color:#444;margin:2px 8px 4px">...另有 '+(sigDataList.length-maxPerCat)+' 个信号</div>';
-      }
-      // Show DBC signal definitions for signals without time series data
-      if(noDataSigs.length>0&&sigDataList.length===0){
-        var maxShow=Math.min(noDataSigs.length,8);
-        for(var ni=0;ni<maxShow;ni++){
-          var ns=noDataSigs[ni];
-          h+='<div style="margin:4px 8px;padding:6px 8px;background:#0a0a14;border-radius:8px;border:0.5px solid #1a1a2a">';
-          h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
-          h+='<div style="display:flex;align-items:center;gap:6px">';
-          h+='<span style="font-size:10px;color:'+catColor+';font-weight:600">'+ns.sig.name+'</span>';
-          if(ns.sig.unit)h+='<span style="font-size:9px;color:#555">('+ns.sig.unit+')</span>';
-          h+='</div>';
-          h+='<span style="font-size:8px;color:#444">'+ns.msg.name+'</span>';
-          h+='</div>';
-          h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin:3px 0">';
-          if(ns.sig.scale!==undefined)h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#4dabf7">系数 '+ns.sig.scale+'</span>';
-          if(ns.sig.offset!==undefined)h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#ffd700">偏移 '+ns.sig.offset+'</span>';
-          if(ns.sig.min!==null)h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#00ff88">范围 ['+ns.sig.min+','+ns.sig.max+']</span>';
-          h+='<span style="background:#2d1a0a;padding:1px 6px;border-radius:4px;font-size:9px;color:#ffa94d">无时序数据</span>';
-          h+='</div>';
-          h+='</div>';
-        }
-        if(noDataSigs.length>maxShow){
-          h+='<div style="font-size:9px;color:#444;margin:2px 8px 4px">...另有 '+(noDataSigs.length-maxShow)+' 个无数据信号</div>';
-        }
-        totalNoData+=noDataSigs.length;
+      } else {
+        h+='<div style="margin:4px 8px;padding:6px 8px;background:#0a0a14;border-radius:8px;border:0.5px solid #1a1a2a">';
+        h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
+        h+='<div style="display:flex;align-items:center;gap:6px">';
+        h+='<span style="font-size:10px;color:'+catColor+';font-weight:600">'+sig.name+'</span>';
+        if(sig.unit)h+='<span style="font-size:9px;color:#555">('+sig.unit+')</span>';
+        h+='</div><div style="display:flex;align-items:center;gap:4px">';
+        h+='<span style="font-size:8px;padding:1px 5px;border-radius:4px;background:#2d1a0a;color:#ffa94d;border:0.5px solid #ffa94d44">仅DBC定义</span>';
+        h+='<span style="font-size:8px;color:#444">'+sig.msg.name+'</span>';
+        h+='</div></div>';
+        h+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin:3px 0">';
+        if(sig.scale!==undefined&&sig.scale!==null)h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#4dabf7">系数 '+sig.scale+'</span>';
+        if(sig.offset!==undefined&&sig.offset!==null)h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#ffd700">偏移 '+sig.offset+'</span>';
+        if(sig.min!==null&&sig.min!==undefined)h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#00ff88">范围 ['+sig.min+','+sig.max+']</span>';
+        h+='<span style="background:#0e1525;padding:1px 6px;border-radius:4px;font-size:9px;color:#868e96">起始位 '+sig.start+' 长度 '+sig.len+'</span>';
+        h+='</div></div>';
       }
     }
-    h+='<div style="font-size:10px;color:#555;margin:8px 0 0;text-align:center">共分析 '+totalAnalyzed+' 个有效信号'+(totalNoData>0?'，'+totalNoData+' 个无数据信号':'')+'</div>';
-    h+='</div>';
+
+    h+='<div style="font-size:10px;color:#555;margin:8px 0 0;text-align:center">';
+    h+='共识别 '+totalSigs+' 个信号，其中 '+totalAnalyzed+' 个已完成详细分析';
+    if(totalNoData>0)h+='，'+totalNoData+' 个在ASC数据中未找到匹配报文';
+    h+='</div></div>';
     return h;
   }
 
