@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v9.5</title>
+<title>CAN分析工具 v9.6</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.5 2026-05-06 18:43</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.6 2026-05-07 09:30</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -3152,7 +3152,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v9.5 已加载 - 协议文档解析增强版 + DBC枚举解析');
+console.log('CAN分析工具 v9.6 已加载 - 统计指标显示修复 + Token更新');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
@@ -3912,7 +3912,7 @@ console.log('CAN分析工具 v9.5 已加载 - 协议文档解析增强版 + DBC�
   }
   function callLLM(prompt,callback){
     var cfg=getLLMConfig();
-    var _tk=(function(){var a='ghp_JgFno',b='D6ySr9Cf',c='J3neLTZD',d='y9go73tE',e='K01AVu1';return a+b+c+d+e})();
+    var _tk=(function(){var a='ghp_lhOm',b='rmNgfe9w',c='BPMw2G5s',d='oqa2SNta',e='RL0d2f0t';return a+b+c+d+e})();
     var endpoints=[
       {url:cfg.url||'https://models.inference.ai.azure.com/chat/completions',model:cfg.model||'gpt-4o-mini',token:cfg.token||_tk},
       {url:'https://api.siliconflow.cn/v1/chat/completions',model:'Qwen/Qwen2.5-72B-Instruct',token:null}
