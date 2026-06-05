@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v10.5</title>
+<title>CAN分析工具 v10.6</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -212,9 +212,9 @@ body{display:flex;flex-direction:column}
 .empty-state .es-icon{font-size:48px;opacity:.3;margin-bottom:8px}
 .chart-container{border-bottom:0.5px solid #1a1a2a;min-height:0;position:relative}
 .chart-container svg{display:block}
-.ax-height-handle{position:absolute;bottom:0;left:0;right:0;height:8px;cursor:ns-resize;z-index:20;background:transparent;touch-action:none}
+.ax-height-handle{position:relative;height:10px;cursor:ns-resize;z-index:20;background:transparent;touch-action:none;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-bottom:0.5px solid #1a1a2a}
 .ax-height-handle:hover,.ax-height-handle.dragging{background:linear-gradient(transparent,rgba(100,140,255,.25))}
-.ax-height-handle::after{content:'';position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:32px;height:2px;border-radius:1px;background:rgba(255,255,255,.15)}
+.ax-height-handle::after{content:'';width:32px;height:2px;border-radius:1px;background:rgba(255,255,255,.15)}
 .ax-height-handle:hover::after,.ax-height-handle.dragging::after{background:rgba(100,140,255,.6)}
 .chart-legend-m{display:flex;flex-wrap:wrap;gap:4px;padding:6px 10px;background:#111218;border-bottom:0.5px solid #2a2a3a;align-items:center;min-height:28px}
 .legend-item-m{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:8px;font-size:10px;cursor:pointer;border:0.5px solid #2a2a3a;background:#15152a;transition:all .12s;user-select:none}
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.5 2026-06-05 17:05</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.6 2026-06-05 17:15</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -947,7 +947,10 @@ function rAFL(){
   var el=$('anaFileL'),h='';
   for(var i=0;i<anaFiles.length;i++){
     var af=anaFiles[i];
-    h+='<div class="file-item"><span class="fi-icon">📂</span><span class="fi-name">'+af.name+'</span><span style="color:#555;font-size:9px;margin-left:4px">'+Object.keys(af.ss||{}).length+'信号</span><button class="fi-del" data-i="'+i+'">✕</button><button class="fi-load" data-i="'+i+'" style="background:#22c55e22;color:#22c55e;border:0.5px solid #22c55e44;border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-left:4px">加载</button></div>';
+    var sigCnt=Object.keys(af.ss||{}).length;
+    var ascCnt=(af.ascNames||[]).length;
+    var dbcCnt=(af.dbcNames||[]).length;
+    h+='<div class="file-item"><span class="fi-icon">📂</span><span class="fi-name">'+af.name+'</span><span style="color:#555;font-size:9px;margin-left:4px">'+sigCnt+'信号'+(ascCnt?' · '+ascCnt+'ASC':'')+(dbcCnt?' · '+dbcCnt+'DBC':'')+'</span><button class="fi-del" data-i="'+i+'">✕</button><button class="fi-load" data-i="'+i+'" style="background:#22c55e22;color:#22c55e;border:0.5px solid #22c55e44;border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-left:4px">加载</button></div>';
   }
   el.innerHTML=h;
   el.querySelectorAll('.fi-del').forEach(function(b){b.addEventListener('click',function(){
@@ -962,17 +965,70 @@ function rAFL(){
 function loadAnaFile(idx){
   var af=anaFiles[idx];
   if(!af)return;
+
+  // Check if required files are loaded
+  var missingAsc=[],missingDbc=[];
+  var ascNames=af.ascNames||[];
+  var dbcNames=af.dbcNames||[];
+  var hasAllAsc=ascNames.length===0;
+  var hasAllDbc=dbcNames.length===0;
+
+  if(!hasAllAsc){
+    var loadedAsc=S.aF.map(function(f){return f.n});
+    for(var i=0;i<ascNames.length;i++){
+      if(loadedAsc.indexOf(ascNames[i])<0)missingAsc.push(ascNames[i]);
+    }
+    if(missingAsc.length===0)hasAllAsc=true;
+  }
+  if(!hasAllDbc){
+    var loadedDbc=S.dF.map(function(f){return f.n});
+    for(var i=0;i<dbcNames.length;i++){
+      if(loadedDbc.indexOf(dbcNames[i])<0)missingDbc.push(dbcNames[i]);
+    }
+    if(missingDbc.length===0)hasAllDbc=true;
+  }
+
+  if(!hasAllAsc||!hasAllDbc){
+    var msg='此分析文件需要以下数据文件：\n';
+    if(missingAsc.length>0)msg+='\n📄 缺少ASC文件：\n  '+missingAsc.join('\n  ');
+    if(missingDbc.length>0)msg+='\n📐 缺少DBC文件：\n  '+missingDbc.join('\n  ');
+    msg+='\n\n请先在左侧上传区域加载这些文件，然后再打开此分析文件。';
+    alert(msg);
+    return;
+  }
+
+  // Restore saved data
   C.ss=JSON.parse(JSON.stringify(af.ss||{}));
   C.ax=JSON.parse(JSON.stringify(af.ax||[]));
+  C.axH=JSON.parse(JSON.stringify(af.axH||{}));
   C.sa=C.ax.length>0?C.ax[0].id:-1;
   C.yr={};
-  if(!isValidTR()){C.t0=null;C.t1=null}
+  C.legendVisibility=JSON.parse(JSON.stringify(af.legendVisibility||{}));
+  if(af.t0!==undefined&&af.t1!==undefined){C.t0=af.t0;C.t1=af.t1}
+  else if(!isValidTR()){C.t0=null;C.t1=null}
   updateChart();
+  // Restore cursor state
+  if(af.cm!==undefined)C.cm=af.cm;
+  if(af.c1!==undefined)C.c1=af.c1;
+  if(af.c2!==undefined)C.c2=af.c2;
 }
 
 function saveAnaFile(name){
   if(!name)return;
-  var af={name:name,ss:JSON.parse(JSON.stringify(C.ss)),ax:JSON.parse(JSON.stringify(C.ax)),ts:Date.now()};
+  var sigCnt=Object.keys(C.ss).length;
+  if(sigCnt===0){alert('当前无信号，请先选择信号量');return}
+  var af={
+    name:name,
+    ss:JSON.parse(JSON.stringify(C.ss)),
+    ax:JSON.parse(JSON.stringify(C.ax)),
+    axH:JSON.parse(JSON.stringify(C.axH||{})),
+    legendVisibility:JSON.parse(JSON.stringify(C.legendVisibility||{})),
+    ascNames:S.aF.map(function(f){return f.n}),
+    dbcNames:S.dF.map(function(f){return f.n}),
+    cm:C.cm,c1:C.c1,c2:C.c2,
+    t0:C.t0,t1:C.t1,
+    ts:Date.now()
+  };
   anaFiles.push(af);saveAnaFiles();rAFL();
 }
 
@@ -2333,8 +2389,13 @@ function mChart(ax,sigs,yMn,yMx){
   cursorHandle2.innerHTML='<div class="ch-inner"></div>';
   svgContainer.appendChild(cursorHandle2);
 
+  // Outer container: chart + height handle below
+  var outerEl=document.createElement('div');
+  outerEl.style.cssText='display:flex;flex-direction:column';
+  outerEl.appendChild(wrap);
+
   var sub={
-    el:wrap,svg:svg,svgContainer:svgContainer,legendWrap:legendWrap,
+    el:outerEl,wrap:wrap,svg:svg,svgContainer:svgContainer,legendWrap:legendWrap,
     ax:ax,aid:ax.id,ac:ax.color,an:ax.name,
     sigs:sigs,yMn:yMn,yMx:yMx,
     mg:mg,W:W,H:H,pw:pw,ph:ph,
@@ -2367,10 +2428,10 @@ function mChart(ax,sigs,yMn,yMx){
     dChart(sub);
   });
 
-  // Height adjust drag handle
+  // Height adjust drag handle - placed below chart container
   var heightHandle=document.createElement('div');
   heightHandle.className='ax-height-handle';
-  wrap.appendChild(heightHandle);
+  outerEl.appendChild(heightHandle);
   (function(){
     var startY,startH,dragging=false;
     function onMove(e){
