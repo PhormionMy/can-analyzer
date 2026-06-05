@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v10.4</title>
+<title>CAN分析工具 v10.5</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.4 2026-06-05 16:55</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.5 2026-06-05 17:05</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -2347,10 +2347,11 @@ function mChart(ax,sigs,yMn,yMx){
   var ro=new ResizeObserver(function(entries){
     for(var e=0;e<entries.length;e++){
       var w=Math.max(Math.floor(entries[e].contentRect.width),200);
-      if(w!==sub.W){
-        sub.W=w;sub.pw=w-mg.l-mg.r;
-        svg.setAttribute('viewBox','0 0 '+w+' '+sub.H);
-        bg.setAttribute('width',w);cr.setAttribute('width',sub.pw);pH.setAttribute('width',sub.pw);
+      var changed=false;
+      if(w!==sub.W){sub.W=w;sub.pw=w-mg.l-mg.r;changed=true}
+      if(changed){
+        svg.setAttribute('viewBox','0 0 '+sub.W+' '+sub.H);
+        bg.setAttribute('width',sub.W);cr.setAttribute('width',sub.pw);pH.setAttribute('width',sub.pw);
         dChart(sub);
       }
     }
@@ -2864,6 +2865,16 @@ function dChart(sub){
   if(!isValidTR()){
     var aT=collectAllTimes();
     if(!aT.length||!computeTimeRange(aT))return;
+  }
+  // Sync viewBox height with actual SVG container height
+  var actualSvgH=sub.svgContainer?sub.svgContainer.clientHeight:0;
+  if(actualSvgH>0&&actualSvgH!==sub.H){
+    sub.H=actualSvgH;
+    sub.ph=actualSvgH-sub.mg.t-sub.mg.b;
+    if(sub.ph<20){sub.ph=20;sub.H=sub.ph+sub.mg.t+sub.mg.b}
+    sub.svg.setAttribute('viewBox','0 0 '+sub.W+' '+sub.H);
+    var bgEl=sub.svg.querySelector('rect[fill="#0a0a0a"]');
+    if(bgEl)bgEl.setAttribute('height',sub.H);
   }
   var mg=sub.mg,pw=sub.pw,ph=sub.ph;
   var vt0=C.t0,vt1=C.t1,yMn=sub.yMn,yMx=sub.yMx,yR=yMx-yMn||1;
