@@ -939,6 +939,7 @@ function rdBin(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.
 })();
 
 // ====== Analysis Files (数据分析文件) ======
+var protoDocFiles=[]; // kept for compatibility with processProtoDocs
 var anaFiles=JSON.parse(localStorage.getItem('can_ana_files')||'[]');
 function saveAnaFiles(){localStorage.setItem('can_ana_files',JSON.stringify(anaFiles))}
 
