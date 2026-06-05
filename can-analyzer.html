@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v10.2</title>
+<title>CAN分析工具 v10.3</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.2 2026-06-05 16:42</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.3 2026-06-05 16:47</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -2272,9 +2272,12 @@ function fitY(){
 function mChart(ax,sigs,yMn,yMx){
   var mg={t:28,r:12,b:24,l:48},W=400;
   var axH=C.axH&&C.axH[ax.id]?C.axH[ax.id]:200;
+  // Adaptive margins for small heights
+  if(axH<160){mg.t=Math.max(16,Math.round(axH*0.14));mg.b=Math.max(14,Math.round(axH*0.1))}
   var H=axH,pw=W-mg.l-mg.r,ph=H-mg.t-mg.b;
+  if(ph<20){ph=20;H=ph+mg.t+mg.b}
   var wrap=document.createElement('div');wrap.className='chart-container';
-  if(C.axH&&C.axH[ax.id])wrap.style.height=C.axH[ax.id]+'px';
+  if(C.axH&&C.axH[ax.id])wrap.style.height=axH+'px';
   var legendWrap=document.createElement('div');legendWrap.className='chart-legend-m';wrap.appendChild(legendWrap);
   var svgContainer=document.createElement('div');
   svgContainer.style.cssText='flex:1;overflow:hidden;position:relative;min-height:60px;touch-action:pan-y;';
@@ -2371,13 +2374,18 @@ function mChart(ax,sigs,yMn,yMx){
     function onMove(e){
       if(!dragging)return;
       var cy=e.touches?e.touches[0].clientY:e.clientY;
-      var newH=Math.max(80,Math.min(600,startH+(cy-startY)));
+      var newH=Math.max(120,Math.min(600,startH+(cy-startY)));
       if(!C.axH)C.axH={};
       C.axH[ax.id]=newH;
       wrap.style.height=newH+'px';
-      sub.H=newH;sub.ph=newH-mg.t-mg.b;
-      svg.setAttribute('viewBox','0 0 '+sub.W+' '+newH);
-      bg.setAttribute('height',newH);cr.setAttribute('height',sub.ph);pH.setAttribute('height',sub.ph);
+      // Adaptive margins
+      var nmg={t:28,r:12,b:24,l:48};
+      if(newH<160){nmg.t=Math.max(16,Math.round(newH*0.14));nmg.b=Math.max(14,Math.round(newH*0.1))}
+      sub.mg=nmg;sub.H=newH;sub.pw=sub.W-nmg.l-nmg.r;sub.ph=newH-nmg.t-nmg.b;
+      if(sub.ph<20){sub.ph=20;sub.H=sub.ph+nmg.t+nmg.b}
+      svg.setAttribute('viewBox','0 0 '+sub.W+' '+sub.H);
+      bg.setAttribute('height',sub.H);cr.setAttribute('x',nmg.l);cr.setAttribute('y',nmg.t);cr.setAttribute('width',sub.pw);cr.setAttribute('height',sub.ph);
+      pH.setAttribute('x',nmg.l);pH.setAttribute('y',nmg.t);pH.setAttribute('width',sub.pw);pH.setAttribute('height',sub.ph);
       dChart(sub);
     }
     function onUp(){dragging=false;heightHandle.classList.remove('dragging');document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);document.removeEventListener('touchmove',onMove);document.removeEventListener('touchend',onUp)}
@@ -3270,7 +3278,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v10.2 已加载 - 信号分析结果完整展示');
+console.log('CAN分析工具 v10.3 已加载 - 信号分析结果完整展示');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
