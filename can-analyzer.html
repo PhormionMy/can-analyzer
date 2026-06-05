@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v9.8</title>
+<title>CAN分析工具 v9.9</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.8 2026-05-07 10:20</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.9 2026-06-05 10:20</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -1678,6 +1678,10 @@ function sch(){
 // ====== Analyze ======
 $('goBtn').addEventListener('click',async function(){
   if(!S.aF.length||!S.dF.length)return;
+  // Save current signal selections before reset
+  var _savedSS = Object.assign({}, C.ss);
+  var _savedAx = C.ax.map(function(a){return {id:a.id,name:a.name,color:a.color,visible:a.visible,min:a.min,max:a.max}});
+  var _axIdSave = _axId;
   S.msgs=[];S.dbc={};S.lk={};S.dec={};S.selId=null;S.ok=false;S.idF={};S.chs=[];S.selCh={};
   C.ax=[];C.sa=-1;C.ss={};C.t0=null;C.t1=null;C.c1=null;C.c2=null;C.hov=null;
   C.curDrag=null;C.subs=[];C.yr={};C.sigFold={};
@@ -1704,6 +1708,17 @@ $('goBtn').addEventListener('click',async function(){
     bFull();dSigs();bIdF();
     S.ok=true;
     uSt();rChSel();rIdList();rSigPanel();rProto();
+    // Restore signal selections if DBC unchanged
+    if(_savedAx.length>0){
+      C.ax=_savedAx;C.sa=_savedAx[0]&&_savedAx[0].id;
+      _axId=_axIdSave;
+      for(var _sk in _savedSS){
+        if(S.dec[_sk]&&findAxis(_savedSS[_sk])){
+          C.ss[_sk]=_savedSS[_sk];
+        }
+      }
+      updateChart();
+    }
     if(window.refreshSigSelector)window.refreshSigSelector();
     switchPage('chart');
     $('dtSig').click();
@@ -3152,7 +3167,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v9.8 已加载 - 信号分析结果完整展示');
+console.log('CAN分析工具 v9.9 已加载 - 信号分析结果完整展示');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
