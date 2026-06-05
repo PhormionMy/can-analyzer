@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v10.1</title>
+<title>CAN分析工具 v10.2</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -309,7 +309,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.1 2026-06-05 16:32</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.2 2026-06-05 16:42</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -334,6 +334,7 @@ body{display:flex;flex-direction:column}
       <div class="ct-sep"></div>
       <button class="ct-btn" id="btnClearCur">清光标</button>
       <button class="ct-btn accent" id="btnExport">📷导出</button>
+      <button class="ct-btn" id="btnSaveAna" style="background:linear-gradient(135deg,#0a2818,#1a0a28);border-color:#22c55e;color:#22c55e">💾保存</button>
       <div class="ct-sep"></div>
       <button class="ct-btn" id="btnAI" style="background:linear-gradient(135deg,#1a0a2e,#0a1628);border-color:#a855f7;color:#a855f7">🤖 AI分析</button>
     </div>
@@ -371,9 +372,9 @@ body{display:flex;flex-direction:column}
         <div class="upload-zone" id="dbcZone"><input type="file" id="dbcIn" accept=".dbc,.txt,.DBC,.TXT,application/octet-stream" multiple><div class="uz-icon">📐</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.dbc .txt</div></div>
         <div class="file-list" id="dbcL"></div>
       </div>
-      <div class="upload-section"><div class="upload-section-title">📋 协议文档</div><div class="upload-section-desc">上传DBC协议说明文档，支持Excel/Word/PDF格式，自动解析信号量含义</div>
-        <div class="upload-zone" id="protoDocZone"><input type="file" id="protoDocIn" accept=".xlsx,.xls,.csv,.docx,.doc,.pdf" multiple><div class="uz-icon">📋</div><div class="uz-text">点击选择协议说明文档</div><div class="uz-hint">自动解析信号值描述映射</div><div class="uz-formats">.xlsx .xls .csv .docx .doc .pdf</div></div>
-        <div class="file-list" id="protoDocL"></div>
+      <div class="upload-section"><div class="upload-section-title">📂 数据分析文件</div><div class="upload-section-desc">保存/加载波形信号配置，快速恢复分析场景</div>
+        <div class="upload-zone" id="anaFileZone" style="cursor:pointer"><div class="uz-icon">📂</div><div class="uz-text">点击加载已保存的分析文件</div><div class="uz-hint">从本地存储中恢复信号配置</div></div>
+        <div class="file-list" id="anaFileL"></div>
       </div>
       <div class="upload-section">
         <div class="upload-section-title" style="cursor:pointer" id="builtinDbcHdr">📚 内置 DBC 库 <span style="font-size:11px;color:#666;margin-left:auto" id="builtinDbcCnt">135个</span><span style="font-size:10px;color:#555;margin-left:4px" id="builtinDbcArrow">▶</span></div>
@@ -937,21 +938,63 @@ function rdBin(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.
   }catch(e){}
 })();
 
-// ====== Protocol Document Upload ======
-var protoDocFiles=[];
-$('protoDocIn').addEventListener('change',function(){
-  for(var i=0;i<this.files.length;i++)protoDocFiles.push({n:this.files[i].name,s:this.files[i].size,f:this.files[i]});
-  rPFL();this.value='';
-});
-function rPFL(){
-  var el=$('protoDocL'),h='';
-  for(var i=0;i<protoDocFiles.length;i++)h+='<div class="file-item"><span class="fi-icon">📋</span><span class="fi-name">'+protoDocFiles[i].n+'</span><span class="fi-size">'+fmtSize(protoDocFiles[i].s)+'</span><button class="fi-del" data-t="proto" data-i="'+i+'">✕</button></div>';
+// ====== Analysis Files (数据分析文件) ======
+var anaFiles=JSON.parse(localStorage.getItem('can_ana_files')||'[]');
+function saveAnaFiles(){localStorage.setItem('can_ana_files',JSON.stringify(anaFiles))}
+
+function rAFL(){
+  var el=$('anaFileL'),h='';
+  for(var i=0;i<anaFiles.length;i++){
+    var af=anaFiles[i];
+    h+='<div class="file-item"><span class="fi-icon">📂</span><span class="fi-name">'+af.name+'</span><span style="color:#555;font-size:9px;margin-left:4px">'+Object.keys(af.ss||{}).length+'信号</span><button class="fi-del" data-i="'+i+'">✕</button><button class="fi-load" data-i="'+i+'" style="background:#22c55e22;color:#22c55e;border:0.5px solid #22c55e44;border-radius:6px;padding:2px 8px;font-size:10px;cursor:pointer;margin-left:4px">加载</button></div>';
+  }
   el.innerHTML=h;
   el.querySelectorAll('.fi-del').forEach(function(b){b.addEventListener('click',function(){
-    protoDocFiles.splice(+this.dataset.i,1);rPFL();
+    anaFiles.splice(+this.dataset.i,1);saveAnaFiles();rAFL();
   })});
-  if(protoDocFiles.length>0)$('protoDocZone').classList.add('has-files');else $('protoDocZone').classList.remove('has-files');
+  el.querySelectorAll('.fi-load').forEach(function(b){b.addEventListener('click',function(){
+    loadAnaFile(+this.dataset.i);
+  })});
+  if(anaFiles.length>0)$('anaFileZone').classList.add('has-files');else $('anaFileZone').classList.remove('has-files');
 }
+
+function loadAnaFile(idx){
+  var af=anaFiles[idx];
+  if(!af)return;
+  C.ss=JSON.parse(JSON.stringify(af.ss||{}));
+  C.ax=JSON.parse(JSON.stringify(af.ax||[]));
+  C.sa=C.ax.length>0?C.ax[0].id:-1;
+  C.yr={};
+  if(!isValidTR()){C.t0=null;C.t1=null}
+  updateChart();
+}
+
+function saveAnaFile(name){
+  if(!name)return;
+  var af={name:name,ss:JSON.parse(JSON.stringify(C.ss)),ax:JSON.parse(JSON.stringify(C.ax)),ts:Date.now()};
+  anaFiles.push(af);saveAnaFiles();rAFL();
+}
+
+$('anaFileZone').addEventListener('click',function(){
+  if(anaFiles.length===0){alert('暂无已保存的分析文件');return}
+  var h='已有分析文件：\n';
+  for(var i=0;i<anaFiles.length;i++)h+=(i+1)+'. '+anaFiles[i].name+' ('+Object.keys(anaFiles[i].ss||{}).length+'信号)\n';
+  h+='\n输入序号加载（或取消）：';
+  var r=prompt(h);
+  if(r!==null){
+    var idx=parseInt(r,10)-1;
+    if(idx>=0&&idx<anaFiles.length)loadAnaFile(idx);
+  }
+});
+
+$('btnSaveAna').addEventListener('click',function(){
+  var sigCnt=Object.keys(C.ss).length;
+  if(sigCnt===0){alert('当前无信号，请先选择信号量');return}
+  var name=prompt('输入分析文件名称：','分析_'+new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/\//g,'-').replace(/:/g,''));
+  if(name)saveAnaFile(name);
+});
+
+rAFL();
 
 function parseProtoDocSignalTable(rows){
   // rows is array of arrays (first row = header)
@@ -3227,7 +3270,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v10.1 已加载 - 信号分析结果完整展示');
+console.log('CAN分析工具 v10.2 已加载 - 信号分析结果完整展示');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
