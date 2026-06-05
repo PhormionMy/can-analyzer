@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>CAN分析工具 v9.9</title>
+<title>CAN分析工具 v10.0</title>
 <script>/* pako 2.1.0 inline - MIT+Zlib */</script>
 <script id="pako-inline">
 /*! pako 2.1.0 https://github.com/nodeca/pako @license (MIT AND Zlib) */
@@ -305,7 +305,7 @@ body{display:flex;flex-direction:column}
 <body>
 <div class="header">
   <div class="header-bar">
-    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v9.9 2026-06-05 10:20</span></div>
+    <div class="header-title"><span class="logo">◈</span> CAN分析 <span style="font-size:10px;color:#555;font-weight:400;margin-left:4px">v10.0 2026-06-05 10:20</span></div>
     <div class="header-actions"><button class="header-btn" id="llmCfgBtn" title="AI设置" style="font-size:14px">⚙</button><button class="header-btn" id="menuBtn" title="菜单">☰</button></div>
   </div>
   <div class="stats-bar">
@@ -360,11 +360,11 @@ body{display:flex;flex-direction:column}
   <div class="page" id="page-upload">
     <div class="upload-page">
       <div class="upload-section"><div class="upload-section-title">📄 ASC 日志文件</div><div class="upload-section-desc">CAN总线记录数据，支持 .asc .txt .csv .blf 格式</div>
-        <div class="upload-zone" id="ascZone"><input type="file" id="ascIn" accept=".asc,.txt,.csv,.blf,.ASC,.TXT,.CSV,.BLF,application/octet-stream" multiple><div class="uz-icon">📁</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.asc .txt .csv .blf</div></div>
+        <div class="upload-zone" id="ascZone"><input type="file" id="ascIn" accept=".asc,.txt,.csv,.blf,.ASC,.TXT,.CSV,.BLF,application/octet-stream" multiple webkitdirectory><div class="uz-icon">📁</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.asc .txt .csv .blf</div></div>
         <div class="file-list" id="ascL"></div>
       </div>
       <div class="upload-section"><div class="upload-section-title">📐 DBC 协议文件</div><div class="upload-section-desc">CAN信号数据库定义文件</div>
-        <div class="upload-zone" id="dbcZone"><input type="file" id="dbcIn" accept=".dbc,.txt,.DBC,.TXT,application/octet-stream" multiple><div class="uz-icon">📐</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.dbc .txt</div></div>
+        <div class="upload-zone" id="dbcZone"><input type="file" id="dbcIn" accept=".dbc,.txt,.DBC,.TXT,application/octet-stream" multiple webkitdirectory><div class="uz-icon">📐</div><div class="uz-text">点击选择或从文件App导入</div><div class="uz-hint">支持 iCloud Drive / 本地文件</div><div class="uz-formats">.dbc .txt</div></div>
         <div class="file-list" id="dbcL"></div>
       </div>
       <div class="upload-section"><div class="upload-section-title">📋 协议文档</div><div class="upload-section-desc">上传DBC协议说明文档，支持Excel/Word/PDF格式，自动解析信号量含义</div>
@@ -908,6 +908,30 @@ function uB(){
 }
 function rd(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.onload=function(e){r(e.target.result)};rd2.onerror=j;rd2.readAsText(f,'UTF-8')})}
 function rdBin(f){return new Promise(function(r,j){var rd2=new FileReader();rd2.onload=function(e){r(e.target.result)};rd2.onerror=j;rd2.readAsArrayBuffer(f)})}
+
+// Show last used file hints
+(function(){
+  try{
+    var lastAsc=JSON.parse(localStorage.getItem('can_last_asc')||'[]');
+    var lastDbc=JSON.parse(localStorage.getItem('can_last_dbc')||'[]');
+    if(lastAsc.length>0){
+      var el=document.createElement('div');
+      el.className='last-files-hint';
+      el.innerHTML='📌 上次: '+lastAsc.join(', ');
+      el.style.cssText='font-size:10px;color:#555;padding:4px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      var zone=$('ascZone');
+      if(zone)zone.appendChild(el);
+    }
+    if(lastDbc.length>0){
+      var el2=document.createElement('div');
+      el2.className='last-files-hint';
+      el2.innerHTML='📌 上次: '+lastDbc.join(', ');
+      el2.style.cssText='font-size:10px;color:#555;padding:4px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+      var zone2=$('dbcZone');
+      if(zone2)zone2.appendChild(el2);
+    }
+  }catch(e){}
+})();
 
 // ====== Protocol Document Upload ======
 var protoDocFiles=[];
@@ -1723,6 +1747,7 @@ $('goBtn').addEventListener('click',async function(){
     switchPage('chart');
     $('dtSig').click();
     $('drawer').classList.add('show');$('drawerOverlay').classList.add('show');
+    try{localStorage.setItem('can_last_asc',JSON.stringify(S.aF.map(function(f){return f.n})));localStorage.setItem('can_last_dbc',JSON.stringify(S.dF.map(function(f){return f.n})));}catch(e){}
   }catch(e){console.error('解析错误:',e)}
 });
 
@@ -3167,7 +3192,7 @@ function rProto(){
   el.innerHTML=h;
 }
 
-console.log('CAN分析工具 v9.9 已加载 - 信号分析结果完整展示');
+console.log('CAN分析工具 v10.0 已加载 - 信号分析结果完整展示');
 // ====== AI Analysis Engine ======
 (function(){
   var AI_PANEL=$('aiPanel'),AI_CLOSE=$('aiPanelClose'),AI_RESET=$('aiResetBtn');
